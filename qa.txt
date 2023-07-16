@@ -1,0 +1,7 @@
+what about extension to less structured envs
+infuse structural knowledge from 2D lines and vanishing points on a calibrated camera to improve depth estimation
+    what does it mean to infuse knowledge on a calibrated? camera?
+    or as restated a bit farther
+        Integrate vanishing point detections in the architecture for FURTHER AND MORE EXPLICIT 3D GUIDANCE in the calibrated camera case.
+            what is 'case' in this case?
+            what are other cases

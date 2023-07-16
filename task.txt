@@ -1,0 +1,5 @@
+STRUCTURAL LAYOUT CUES OF AN INDOOR ENVIRONMENT (E.G. LINES AND VANISHING POINTS) INTO A TRANSFORMER MODEL TO AID MONOCULAR DEPTH ESTIMATION.
+
+- hybrid convolutional and transformer architecture
+    to allow the architecture to reason about and along structurally relevant lines, and their corresponding vanishing point which constraints the line's 3D inclination in a calibrated setting
+- indoor environments
