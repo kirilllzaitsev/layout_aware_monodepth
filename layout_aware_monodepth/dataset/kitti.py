@@ -22,13 +22,14 @@ def preprocessing_transforms(mode):
 
 
 class KITTIDataset(Dataset):
-    def __init__(self, args, mode, transform=None):
+    def __init__(self, args, mode, transform=None, do_augment=False):
         self.args = args
         with open(args.filenames_file, "r") as f:
             self.filenames = f.readlines()
 
         self.mode = mode
         self.transform = transform
+        self.do_augment = do_augment
         self.to_tensor = ToTensor
 
     def __getitem__(self, idx):
@@ -40,7 +41,7 @@ class KITTIDataset(Dataset):
                 # depth_file = os.path.join(sample_path.split()[0].split('/')[0], sample_path.split()[1])
                 depth_file = sample_path.split()[1]
 
-                if self.args.use_right is True and random.random() > 0.5:
+                if self.args.use_right is True:
                     rgb_file.replace("image_02", "image_03")
                     depth_file.replace("image_02", "image_03")
             else:
@@ -69,7 +70,7 @@ class KITTIDataset(Dataset):
                     depth_gt = depth_gt.crop((43, 45, 608, 472))
                     image = image.crop((43, 45, 608, 472))
 
-            if self.args.do_random_rotate is True:
+            if self.args.do_random_rotate and self.do_augment:
                 random_angle = (random.random() - 0.5) * 2 * self.args.degree
                 image = rotate_image(image, random_angle)
                 depth_gt = rotate_image(depth_gt, random_angle, flag=Image.NEAREST)
@@ -111,14 +112,3 @@ class KITTIDataset(Dataset):
 
     def __len__(self):
         return len(self.filenames)
-
-
-if __name__ == "__main__":
-    from tmp import parser
-    args = parser.parse_args()
-    ds = KITTIDataset(args, "train", transform=transforms.Compose([ToTensor("train")]))
-    dl = DataLoader(ds, batch_size=1, shuffle=True, num_workers=0)
-    x = ds[0]
-    print(x)
-    x = next(iter(dl))
-    print(x)
