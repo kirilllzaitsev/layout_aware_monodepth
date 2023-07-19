@@ -1,6 +1,8 @@
+import json
 import os
 import random
 
+import h5py
 import numpy as np
 import torch
 import torch.utils.data.distributed
@@ -24,13 +26,12 @@ def preprocessing_transforms(mode):
 class MonodepthDataset(Dataset):
     def __init__(self, args, mode, transform=None, do_augment=False):
         self.args = args
-        with open(args.filenames_file, "r") as f:
-            self.filenames = f.readlines()
 
         self.mode = mode
         self.transform = transform
         self.do_augment = do_augment
         self.to_tensor = ToTensor
+        self.filenames = []
 
     def __getitem__(self, idx):
         if self.mode == "train":
@@ -102,6 +103,9 @@ class KITTIDataset(MonodepthDataset):
     def __init__(self, args, mode, transform=None, do_augment=False):
         super().__init__(args, mode, transform, do_augment)
 
+        with open(args.filenames_file, "r") as f:
+            self.filenames = f.readlines()
+
     def load_img_and_depth(self, idx):
         sample_path = self.filenames[idx]
         rgb_file = sample_path.split()[0]
@@ -134,24 +138,25 @@ class KITTIDataset(MonodepthDataset):
 class NYUv2Dataset(MonodepthDataset):
     def __init__(self, args, mode, transform=None, do_augment=False):
         super().__init__(args, mode, transform, do_augment)
-        import h5py
-
-        # with h5py.File(f"{args.data_path}/nyu_depth_v2_labeled.mat", "r") as hdf:
-        hdf = h5py.File(f"{args.data_path}/nyu_depth_v2_labeled.mat", "r")
-        self.images = hdf.get("images")
-        self.depths = hdf.get("depths")
+        with open(self.args.filenames_file) as json_file:
+            json_data = json.load(json_file)
+            self.filenames = json_data[mode]
 
     def load_img_and_depth(self, idx):
-        image = Image.fromarray(self.images[idx].transpose(1, 2, 0))
-        depth_gt = Image.fromarray(self.depths[idx], mode='F')
+        path_file = os.path.join(self.args.data_path, self.filenames[idx]["filename"])
 
-        # To avoid blank boundaries due to pixel registration
-        image, depth_gt = self.handle_blank_boundaries(image, depth_gt)
+        f = h5py.File(path_file, "r")
+        rgb_h5 = f["rgb"][:].transpose(1, 2, 0)
+        dep_h5 = f["depth"][:]
+
+        image = Image.fromarray(rgb_h5, mode="RGB")
+        depth_gt = Image.fromarray(dep_h5.astype("float32"), mode="F")
 
         return image, depth_gt
 
     def convert_depth_to_meters(self, depth_gt):
-        depth_gt = depth_gt / 4.0
+        depth_gt = depth_gt / 1.0
+        # depth_gt = depth_gt / 4.0  # original .mat
         # depth_gt = depth_gt / 1000.0
         return depth_gt
 
