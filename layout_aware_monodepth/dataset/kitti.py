@@ -36,27 +36,23 @@ class KITTIDataset(Dataset):
         sample_path = self.filenames[idx]
 
         if self.mode == "train":
+            rgb_file = sample_path.split()[0]
+            depth_file = sample_path.split()[1]
+
             if self.args.dataset == "kitti":
-                rgb_file = sample_path.split()[0]
-                # depth_file = os.path.join(sample_path.split()[0].split('/')[0], sample_path.split()[1])
-                depth_file = sample_path.split()[1]
 
                 if self.args.use_right is True:
                     rgb_file.replace("image_02", "image_03")
                     depth_file.replace("image_02", "image_03")
-            else:
-                rgb_file = sample_path.split()[0]
-                depth_file = sample_path.split()[1]
 
-            image_path = os.path.join(
-                self.args.data_path, "./" + sample_path.split()[0]
-            )
-            depth_path = os.path.join(self.args.gt_path, "./" + sample_path.split()[1])
+            image_path = os.path.join(self.args.data_path, sample_path.split()[0])
+            depth_path = os.path.join(self.args.gt_path, sample_path.split()[1])
             image = Image.open(image_path)
             depth_gt = Image.open(depth_path)
 
-            if self.args.do_kb_crop is True:
-                image, depth_gt = kb_crop(image, depth_gt)
+            if self.args.dataset == "kitti":
+                if self.args.do_kb_crop is True:
+                    image, depth_gt = kb_crop(image, depth_gt)
 
             # To avoid blank boundaries due to pixel registration
             if self.args.dataset == "nyu":
@@ -88,10 +84,14 @@ class KITTIDataset(Dataset):
                 image.shape[0] != self.args.input_height
                 or image.shape[1] != self.args.input_width
             ):
+                print(
+                    f"image.shape: {image.shape} and self.args.input_height: {self.args.input_height}. doing random crop"
+                )
                 image, depth_gt = random_crop(
                     image, depth_gt, self.args.input_height, self.args.input_width
                 )
-            image, depth_gt = train_preprocess(image, depth_gt)
+            if self.do_augment:
+                image, depth_gt = train_preprocess(image, depth_gt)
             sample = {
                 "image": image,
                 "depth": depth_gt,
@@ -100,13 +100,15 @@ class KITTIDataset(Dataset):
         else:
             data_path = self.args.data_path
 
-            image_path = os.path.join(data_path, "./" + sample_path.split()[0])
-            image = np.asarray(Image.open(image_path), dtype=np.float32) / 255.0
+            rgb_file = sample_path.split()[0]
+            image_path = os.path.join(data_path, rgb_file)
+            image = np.asarray(Image.open(image_path), dtype=np.float32)
+            image /= 255.0
 
             sample = {"image": image}
 
         if self.transform:
-            sample = self.transform(sample)
+            sample["image"] = self.transform(sample["image"])
 
         return sample
 

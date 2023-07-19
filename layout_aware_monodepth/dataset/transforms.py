@@ -79,23 +79,10 @@ def augment_image(image, ds_name="kitti"):
 class ToTensor(object):
     def __init__(self, mode):
         self.mode = mode
-        self.normalize = transforms.Normalize(
-            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-        )
 
-    def __call__(self, sample):
-        image = sample["image"]
+    def __call__(self, image):
         image = self.to_tensor(image)
-        image = self.normalize(image)
-
-        if self.mode == "test":
-            return {"image": image}
-
-        depth = sample["depth"]
-        return {
-            "image": image,
-            "depth": depth,
-        }
+        return image
 
     def to_tensor(self, pic):
         if not (_is_pil_image(pic) or _is_numpy_image(pic)):
@@ -136,3 +123,18 @@ def _is_pil_image(img):
 
 def _is_numpy_image(img):
     return isinstance(img, np.ndarray) and (img.ndim in {2, 3})
+
+
+train_transform = transforms.Compose(
+    [
+        ToTensor(mode="train"),
+        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ]
+)
+
+test_transform = transforms.Compose(
+    [
+        ToTensor(mode="test"),
+        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ]
+)
