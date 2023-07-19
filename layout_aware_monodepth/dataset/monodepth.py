@@ -134,7 +134,6 @@ class KITTIDataset(MonodepthDataset):
         return Image.open(path)
 
 
-# image.shape: (427, 565, 3)
 class NYUv2Dataset(MonodepthDataset):
     def __init__(self, args, mode, transform=None, do_augment=False):
         super().__init__(args, mode, transform, do_augment)
@@ -146,10 +145,9 @@ class NYUv2Dataset(MonodepthDataset):
         path_file = os.path.join(self.args.data_path, self.filenames[idx]["filename"])
 
         f = h5py.File(path_file, "r")
-        rgb_h5 = f["rgb"][:].transpose(1, 2, 0)
-        dep_h5 = f["depth"][:]
+        image = self._load_rgb(f)
 
-        image = Image.fromarray(rgb_h5, mode="RGB")
+        dep_h5 = f["depth"][:]
         depth_gt = Image.fromarray(dep_h5.astype("float32"), mode="F")
 
         return image, depth_gt
@@ -173,6 +171,13 @@ class NYUv2Dataset(MonodepthDataset):
         return image, depth_gt
 
     def load_rgb(self, idx):
-        image = self.images[idx]
-        image = Image.fromarray(image)
+        path_file = os.path.join(self.args.data_path, self.filenames[idx]["filename"])
+
+        f = h5py.File(path_file, "r")
+        image = self._load_rgb(f)
+        return image
+
+    def _load_rgb(self, f):
+        rgb_h5 = f["rgb"][:].transpose(1, 2, 0)
+        image = Image.fromarray(rgb_h5, mode="RGB")
         return image
