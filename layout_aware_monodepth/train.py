@@ -46,13 +46,13 @@ def calculate_loss(input1, input2):
 def run():
     pl.seed_everything(1234)
     ds_args = argparse.Namespace(
-        **yaml.load(open("../configs/kitti_ds.yaml"), Loader=yaml.FullLoader)
+        # **yaml.load(open("../configs/kitti_ds.yaml"), Loader=yaml.FullLoader)
+        **yaml.load(open("../configs/kitti_ds_overfit.yaml"), Loader=yaml.FullLoader)
     )
     # ds = NYUv2Dataset(ds_args, "train", transform=train_transform)
-    ds = KITTIDataset(ds_args, "train", transform=train_transform)
-    ds_args.batch_size = 8
+    ds = KITTIDataset(ds_args, ds_args.mode, transform=train_transform)
 
-    ds_subset = torch.utils.data.Subset(ds, range(0, 100))
+    ds_subset = torch.utils.data.Subset(ds, range(0, 1))
 
     train_loader = DataLoader(ds_subset, batch_size=ds_args.batch_size, shuffle=False)
     val_loader = DataLoader(ds_subset, batch_size=ds_args.batch_size)
@@ -121,6 +121,7 @@ def run():
         if (epoch - 1) % cfg.vis_freq_epochs == 0 or epoch == cfg.num_epochs - 1:
             out = train_step_res["pred"].detach().cpu().permute(0, 2, 3, 1)
             images = train_batch["image"].detach().cpu().permute(0, 2, 3, 1)
+            depths = train_batch["depth"].detach().cpu()
 
             name = "preds/depth"
             for idx in range(len(out)):
@@ -131,9 +132,9 @@ def run():
                 )
 
             name = "preds/sample"
-            for idx, (img, depth) in enumerate(zip(images, out)):
+            for idx, (img, in_depth, depth) in enumerate(zip(images, depths, out)):
                 experiment.log_image(
-                    torch.cat([img, depth.repeat(1, 1, 3)], dim=0),
+                    torch.cat([in_depth.repeat(1, 1, 3), depth.repeat(1, 1, 3), img], dim=0),
                     f"{name}_{idx}",
                     step=epoch,
                 )
