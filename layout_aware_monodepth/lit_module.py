@@ -8,7 +8,11 @@ from torch.utils.data import DataLoader
 from layout_aware_monodepth.dataset.monodepth import KITTIDataset
 from layout_aware_monodepth.model import DepthModel
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def comet_image(exp, img, name, **kwargs):
+    # img: B, H, W, C
+    for i, frame in enumerate(img.detach().cpu()):
+        exp.log_image(frame, name=f"{name}_{i}", **kwargs)
 
 
 class LitModule(pl.LightningModule):
@@ -22,10 +26,15 @@ class LitModule(pl.LightningModule):
         return depth
 
     def training_step(self, batch, batch_idx):
-        x, y = batch["image"].to(device), batch["depth"].permute(0, 3, 1, 2).to(device)
+        x, y = batch["image"].to(self.device), batch["depth"].permute(0, 3, 1, 2).to(
+            self.device
+        )
         out = self.model(x)
         loss = F.mse_loss(out, y)
-        return loss
+        self.log_dict({"loss": loss, "log": {"train_loss": loss}})
+
+        exp = self.logger.experiment
+        comet_image(exp, out, name="train/out", step=self.global_step)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
@@ -35,18 +44,6 @@ class LitModule(pl.LightningModule):
 def cli_main():
     pl.seed_everything(1234)
 
-    # ------------
-    # args
-    # ------------
-    parser = ArgumentParser()
-    parser.add_argument("--batch_size", default=8, type=int)
-    parser.add_argument("--hidden_dim", type=int, default=128)
-    parser = pl.Trainer.add_argparse_args(parser)
-    args = parser.parse_args()
-
-    # ------------
-    # data
-    # ------------
     import argparse
 
     import yaml
@@ -59,9 +56,11 @@ def cli_main():
     # ds = NYUv2Dataset(ds_args, "train", transform=train_transform)
     ds = KITTIDataset(ds_args, "train", transform=train_transform)
 
-    train_loader = DataLoader(ds, batch_size=args.batch_size)
-    val_loader = DataLoader(ds, batch_size=args.batch_size)
-    test_loader = DataLoader(ds, batch_size=args.batch_size)
+    ds_args.batch_size = 1
+
+    train_loader = DataLoader(ds, batch_size=ds_args.batch_size, shuffle=False)
+    val_loader = DataLoader(ds, batch_size=ds_args.batch_size)
+    test_loader = DataLoader(ds, batch_size=ds_args.batch_size)
 
     # ------------
     # model
@@ -71,14 +70,21 @@ def cli_main():
     # ------------
     # training
     # ------------
-    trainer = pl.Trainer.from_argparse_args(args, accelerator="gpu", gpus=1)
+    trainer = pl.Trainer(
+        accelerator="gpu",
+        gpus=1,
+        # fast_dev_run=True,
+        overfit_batches=1,
+        max_epochs=100,
+        log_every_n_steps=1,
+    )
     trainer.fit(model, train_loader, val_loader)
 
     # ------------
     # testing
     # ------------
-    result = trainer.test(test_dataloaders=test_loader)
-    print(result)
+    # result = trainer.test(test_dataloaders=test_loader)
+    # print(result)
 
 
 if __name__ == "__main__":
