@@ -107,17 +107,10 @@ class KITTIDataset(MonodepthDataset):
             self.filenames = f.readlines()
 
     def load_img_and_depth(self, idx):
-        sample_path = self.filenames[idx]
-        rgb_file = sample_path.split()[0]
-        image_path = os.path.join(self.args.data_path, rgb_file)
+        image_path = self.filenames[idx].strip()
+        image_path = os.path.join(self.args.data_path, image_path)
 
-        depth_file = sample_path.split()[1]
-
-        depth_path = os.path.join(self.args.gt_path, depth_file)
-
-        if self.args.use_right is True:
-            image_path = image_path.replace("image_02", "image_03")
-            depth_path = depth_path.replace("image_02", "image_03")
+        depth_path = image_path.replace("image", "groundtruth_depth", 2)
 
         image = self.load_rgb(image_path)
         depth_gt = self.load_rgb(depth_path)
