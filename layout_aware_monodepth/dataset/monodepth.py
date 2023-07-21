@@ -121,6 +121,7 @@ class KITTIDataset(MonodepthDataset):
 
     def convert_depth_to_meters(self, depth_gt):
         depth_gt = depth_gt / 256.0
+        depth_gt /= 100.0
         return depth_gt
 
     def load_rgb(self, path):
@@ -146,7 +147,7 @@ class NYUv2Dataset(MonodepthDataset):
         return image, depth_gt
 
     def convert_depth_to_meters(self, depth_gt):
-        depth_gt = depth_gt / 1.0
+        depth_gt = depth_gt / 10.0
         # depth_gt = depth_gt / 4.0  # original .mat
         # depth_gt = depth_gt / 1000.0
         return depth_gt
