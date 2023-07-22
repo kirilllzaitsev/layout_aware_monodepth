@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from layout_aware_monodepth.cfg import cfg
-from layout_aware_monodepth.dataset.monodepth import KITTIDataset
+from layout_aware_monodepth.dataset.monodepth import KITTIDataset, NYUv2Dataset
 from layout_aware_monodepth.dataset.transforms import ToTensor, train_transform
 from layout_aware_monodepth.model import DepthModel
 from layout_aware_monodepth.pipeline_utils import create_tracking_exp
@@ -45,12 +45,33 @@ def calculate_loss(input1, input2):
 
 def run():
     pl.seed_everything(1234)
-    ds_args = argparse.Namespace(
-        # **yaml.load(open("../configs/kitti_ds.yaml"), Loader=yaml.FullLoader)
-        **yaml.load(open("../configs/kitti_ds_overfit.yaml"), Loader=yaml.FullLoader)
-    )
-    # ds = NYUv2Dataset(ds_args, "train", transform=train_transform)
-    ds = KITTIDataset(ds_args, ds_args.mode, transform=train_transform)
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ds", type=str, default="kitti", choices=["kitti", "nyu"])
+    parser.add_argument("--do_overfit", action="store_true")
+    parser.add_argument("--exp_disabled", action="store_true")
+    args = parser.parse_args()
+
+    if args.ds == "kitti":
+        if args.do_overfit:
+            config_path = "../configs/kitti_ds_overfit.yaml"
+        else:
+            config_path = "../configs/kitti_ds.yaml"
+    else:
+        if args.do_overfit:
+            config_path = "../configs/nyu_ds_overfit.yaml"
+        else:
+            config_path = "../configs/nyu_ds.yaml"
+
+    cfg.exp_disabled = args.exp_disabled
+
+    ds_args = argparse.Namespace(**yaml.load(open(config_path), Loader=yaml.FullLoader))
+
+    if args.ds == "kitti":
+        ds = KITTIDataset(ds_args, ds_args.mode, transform=train_transform)
+    else:
+        ds = NYUv2Dataset(ds_args, "train", transform=train_transform)
 
     ds_subset = torch.utils.data.Subset(ds, range(0, 1))
 
@@ -66,6 +87,8 @@ def run():
 
     epoch_bar = tqdm(total=cfg.num_epochs, leave=False)
     experiment = create_tracking_exp(cfg)
+
+    experiment.add_tags([args.ds, "overfit" if args.do_overfit else "full"])
 
     global_step = 0
 
@@ -134,13 +157,17 @@ def run():
             name = "preds/sample"
             for idx, (img, in_depth, depth) in enumerate(zip(images, depths, out)):
                 experiment.log_image(
-                    torch.cat([in_depth.repeat(1, 1, 3), depth.repeat(1, 1, 3), img], dim=0),
+                    torch.cat(
+                        [in_depth.repeat(1, 1, 3), depth.repeat(1, 1, 3), img], dim=0
+                    ),
                     f"{name}_{idx}",
                     step=epoch,
                 )
 
-        if epoch in [50]:
+        if epoch in [50] and cfg.do_save_model:
             torch.save(model.state_dict(), f"model_{epoch}.pth")
+
+    experiment.add_tags(["finished"])
 
 
 if __name__ == "__main__":
