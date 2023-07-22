@@ -24,6 +24,8 @@ def preprocessing_transforms(mode):
 
 
 class MonodepthDataset(Dataset):
+    max_depth = None
+
     def __init__(self, args, mode, transform=None, do_augment=False):
         self.args = args
 
@@ -72,6 +74,7 @@ class MonodepthDataset(Dataset):
             image, depth_gt = train_preprocess(image, depth_gt)
 
         depth_gt = self.convert_depth_to_meters(depth_gt)
+        depth_gt /= self.max_depth
 
         sample = {
             "image": image,
@@ -100,6 +103,8 @@ class MonodepthDataset(Dataset):
 
 
 class KITTIDataset(MonodepthDataset):
+    max_depth = 100.0
+
     def __init__(self, args, mode, transform=None, do_augment=False):
         super().__init__(args, mode, transform, do_augment)
 
@@ -121,7 +126,6 @@ class KITTIDataset(MonodepthDataset):
 
     def convert_depth_to_meters(self, depth_gt):
         depth_gt = depth_gt / 256.0
-        depth_gt /= 100.0
         return depth_gt
 
     def load_rgb(self, path):
@@ -129,6 +133,8 @@ class KITTIDataset(MonodepthDataset):
 
 
 class NYUv2Dataset(MonodepthDataset):
+    max_depth = 10.0
+
     def __init__(self, args, mode, transform=None, do_augment=False):
         super().__init__(args, mode, transform, do_augment)
         with open(self.args.filenames_file) as json_file:
@@ -147,7 +153,7 @@ class NYUv2Dataset(MonodepthDataset):
         return image, depth_gt
 
     def convert_depth_to_meters(self, depth_gt):
-        depth_gt = depth_gt / 10.0
+        depth_gt = depth_gt / 1.0
         # depth_gt = depth_gt / 4.0  # original .mat
         # depth_gt = depth_gt / 1000.0
         return depth_gt
