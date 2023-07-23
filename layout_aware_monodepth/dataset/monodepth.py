@@ -1,7 +1,7 @@
-from functools import lru_cache
 import json
 import os
 import random
+from functools import lru_cache
 
 import cv2
 import h5py
@@ -194,7 +194,6 @@ class NYUv2Dataset(MonodepthDataset):
         depth_gt = interpolate_depth_depth(dep_h5.squeeze(), do_multiscale=True)
         depth_gt = Image.fromarray(depth_gt.astype("float32"), mode="F")
 
-
         return image, depth_gt
 
     def convert_depth_to_meters(self, depth_gt):
@@ -202,7 +201,7 @@ class NYUv2Dataset(MonodepthDataset):
         # depth_gt = depth_gt / 4.0  # original .mat
         # depth_gt = depth_gt / 1000.0
         return depth_gt
-            
+
     def load_rgb(self, idx):
         path_file = os.path.join(self.args.data_path, self.filenames[idx]["filename"])
 

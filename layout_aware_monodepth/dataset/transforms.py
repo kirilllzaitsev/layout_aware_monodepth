@@ -2,6 +2,7 @@ import random
 
 import numpy as np
 import torch
+from ip_basic import depth_map_utils
 from PIL import Image
 from torchvision import transforms
 
@@ -123,6 +124,18 @@ def _is_pil_image(img):
 
 def _is_numpy_image(img):
     return isinstance(img, np.ndarray) and (img.ndim in {2, 3})
+
+
+def interpolate_depth_depth(depth, do_multiscale=False, *args, **kwargs):
+    """See depth_map_utils.fill_in_fast"""
+    if do_multiscale:
+        ddm, _ = depth_map_utils.fill_in_multiscale(
+            depth.astype("float32"), *args, **kwargs
+        )
+    else:
+        ddm = depth_map_utils.fill_in_fast(depth.astype("float32"), *args, **kwargs)
+    return ddm
+
 
 
 train_transform = transforms.Compose(
