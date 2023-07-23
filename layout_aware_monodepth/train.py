@@ -3,6 +3,7 @@ import argparse
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+import torchvision as tv
 import yaml
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -51,6 +52,7 @@ def run():
     parser.add_argument("--ds", type=str, default="kitti", choices=["kitti", "nyu"])
     parser.add_argument("--do_overfit", action="store_true")
     parser.add_argument("--exp_disabled", action="store_true")
+    parser.add_argument("--do_overlay_lines", action="store_true")
     args = parser.parse_args()
 
     if args.ds == "kitti":
@@ -69,11 +71,21 @@ def run():
     ds_args = argparse.Namespace(**yaml.load(open(config_path), Loader=yaml.FullLoader))
 
     if args.ds == "kitti":
-        ds = KITTIDataset(ds_args, ds_args.mode, transform=train_transform)
+        ds_cls = KITTIDataset
     else:
-        ds = NYUv2Dataset(ds_args, "train", transform=train_transform)
+        ds_cls = NYUv2Dataset
 
-    ds_subset = torch.utils.data.Subset(ds, range(0, 1))
+    ds = ds_cls(
+        ds_args,
+        ds_args.mode,
+        transform=train_transform,
+        do_overlay_lines=args.do_overlay_lines,
+    )
+
+    if args.do_overfit:
+        ds_subset = torch.utils.data.Subset(ds, range(0, 1))
+    else:
+        ds_subset = ds
 
     train_loader = DataLoader(ds_subset, batch_size=ds_args.batch_size, shuffle=False)
     val_loader = DataLoader(ds_subset, batch_size=ds_args.batch_size)
@@ -88,7 +100,13 @@ def run():
     epoch_bar = tqdm(total=cfg.num_epochs, leave=False)
     experiment = create_tracking_exp(cfg)
 
-    experiment.add_tags([args.ds, "overfit" if args.do_overfit else "full"])
+    experiment.add_tags(
+        [
+            args.ds,
+            "overfit" if args.do_overfit else "full",
+            "overlay" if args.do_overlay_lines else "no_overlay",
+        ]
+    )
 
     global_step = 0
 
@@ -156,10 +174,21 @@ def run():
 
             name = "preds/sample"
             for idx, (img, in_depth, depth) in enumerate(zip(images, depths, out)):
+                concat_sample = torch.cat(
+                    [in_depth.repeat(1, 1, 3), depth.repeat(1, 1, 3), img],
+                    dim=0,
+                )
+
+                if args.ds == "nyu":
+                    target_shape = [
+                        concat_sample.shape[0] // 2,
+                        concat_sample.shape[1] // 2,
+                    ]
+                    concat_sample = tv.transforms.Resize(target_shape, antialias=True)(
+                        concat_sample.permute(2, 0, 1)
+                    ).permute(1, 2, 0)
                 experiment.log_image(
-                    torch.cat(
-                        [in_depth.repeat(1, 1, 3), depth.repeat(1, 1, 3), img], dim=0
-                    ),
+                    concat_sample,
                     f"{name}_{idx}",
                     step=epoch,
                 )
