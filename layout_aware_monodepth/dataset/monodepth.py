@@ -1,3 +1,4 @@
+from functools import lru_cache
 import json
 import os
 import random
@@ -46,6 +47,7 @@ class MonodepthDataset(Dataset):
 
             self.deeplsd = load_deeplsd(self.device)
 
+    @lru_cache(maxsize=128)
     def __getitem__(self, idx):
         if self.mode == "train":
             image, depth_gt = self.load_img_and_depth(idx)
@@ -66,18 +68,28 @@ class MonodepthDataset(Dataset):
 
     def overlay_lines(self, image):
         # Detect (and optionally refine) the lines
+        line_detector_img = image.copy()
         if np.max(image) <= 1.0:
-            image = image * 255.0
+            line_detector_img = line_detector_img * 255.0
         inputs = {
-            "image": torch.tensor(cv2.cvtColor(image, cv2.COLOR_RGB2GRAY), dtype=torch.float, device=self.device)[
-                None, None
-            ]
+            "image": torch.tensor(
+                cv2.cvtColor(line_detector_img, cv2.COLOR_RGB2GRAY),
+                dtype=torch.float,
+                device=self.device,
+            )[None, None]
             / 255.0
         }
         with torch.no_grad():
             out = self.deeplsd(inputs)
-            pred_lines = out["lines"][0]
-        
+            pred_lines = out["lines"][0].astype(np.int32)
+
+        line_thickness = 2
+        overlay = image.copy()
+        for line in pred_lines:
+            overlay = cv2.line(
+                overlay, tuple(line[0]), tuple(line[1]), (0, 1, 0), line_thickness
+            )
+
         return overlay
 
     def prep_train_sample(self, image, depth_gt):
