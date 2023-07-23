@@ -2,6 +2,7 @@ import json
 import os
 import random
 
+import cv2
 import h5py
 import numpy as np
 import torch
@@ -26,14 +27,24 @@ def preprocessing_transforms(mode):
 class MonodepthDataset(Dataset):
     max_depth = None
 
-    def __init__(self, args, mode, transform=None, do_augment=False):
+    def __init__(
+        self, args, mode, transform=None, do_augment=False, do_overlay_lines=False
+    ):
         self.args = args
 
         self.mode = mode
         self.transform = transform
         self.do_augment = do_augment
+        self.do_overlay_lines = do_overlay_lines
         self.to_tensor = ToTensor
         self.filenames = []
+
+        if self.do_overlay_lines:
+            from layout_aware_monodepth.dataset.tmp import load_deeplsd
+
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+            self.deeplsd = load_deeplsd(self.device)
 
     def __getitem__(self, idx):
         if self.mode == "train":
@@ -45,10 +56,29 @@ class MonodepthDataset(Dataset):
             image = self.load_rgb(idx)
             sample = self.prep_test_sample(image)
 
+        if self.do_overlay_lines:
+            sample["image"] = self.overlay_lines(sample["image"])
+
         if self.transform:
             sample["image"] = self.transform(sample["image"])
 
         return sample
+
+    def overlay_lines(self, image):
+        # Detect (and optionally refine) the lines
+        if np.max(image) <= 1.0:
+            image = image * 255.0
+        inputs = {
+            "image": torch.tensor(cv2.cvtColor(image, cv2.COLOR_RGB2GRAY), dtype=torch.float, device=self.device)[
+                None, None
+            ]
+            / 255.0
+        }
+        with torch.no_grad():
+            out = self.deeplsd(inputs)
+            pred_lines = out["lines"][0]
+        
+        return overlay
 
     def prep_train_sample(self, image, depth_gt):
         if self.args.do_random_rotate and self.do_augment:
@@ -105,10 +135,10 @@ class MonodepthDataset(Dataset):
 class KITTIDataset(MonodepthDataset):
     max_depth = 100.0
 
-    def __init__(self, args, mode, transform=None, do_augment=False):
-        super().__init__(args, mode, transform, do_augment)
+    def __init__(self, *args_, **kwargs):
+        super().__init__(*args_, **kwargs)
 
-        with open(args.filenames_file, "r") as f:
+        with open(self.args.filenames_file, "r") as f:
             self.filenames = f.readlines()
 
     def load_img_and_depth(self, idx):
@@ -135,11 +165,11 @@ class KITTIDataset(MonodepthDataset):
 class NYUv2Dataset(MonodepthDataset):
     max_depth = 10.0
 
-    def __init__(self, args, mode, transform=None, do_augment=False):
-        super().__init__(args, mode, transform, do_augment)
+    def __init__(self, *args_, **kwargs):
+        super().__init__(*args_, **kwargs)
         with open(self.args.filenames_file) as json_file:
             json_data = json.load(json_file)
-            self.filenames = json_data[mode]
+            self.filenames = json_data[self.mode]
 
     def load_img_and_depth(self, idx):
         path_file = os.path.join(self.args.data_path, self.filenames[idx]["filename"])
