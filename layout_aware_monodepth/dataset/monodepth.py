@@ -14,6 +14,7 @@ from torchvision import transforms
 
 from layout_aware_monodepth.dataset.transforms import (
     ToTensor,
+    interpolate_depth_depth,
     kb_crop,
     random_crop,
     rotate_image,
@@ -190,7 +191,9 @@ class NYUv2Dataset(MonodepthDataset):
         image = self._load_rgb(f)
 
         dep_h5 = f["depth"][:]
-        depth_gt = Image.fromarray(dep_h5.astype("float32"), mode="F")
+        depth_gt = interpolate_depth_depth(dep_h5.squeeze(), do_multiscale=True)
+        depth_gt = Image.fromarray(depth_gt.astype("float32"), mode="F")
+
 
         return image, depth_gt
 
@@ -211,7 +214,7 @@ class NYUv2Dataset(MonodepthDataset):
             depth_gt = depth_gt.crop((43, 45, 608, 472))
             image = image.crop((43, 45, 608, 472))
         return image, depth_gt
-
+        
     def load_rgb(self, idx):
         path_file = os.path.join(self.args.data_path, self.filenames[idx]["filename"])
 
