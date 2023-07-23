@@ -202,19 +202,7 @@ class NYUv2Dataset(MonodepthDataset):
         # depth_gt = depth_gt / 4.0  # original .mat
         # depth_gt = depth_gt / 1000.0
         return depth_gt
-
-    def handle_blank_boundaries(self, image, depth_gt):
-        if self.args.input_height == 480:
-            depth_gt = np.array(depth_gt)
-            valid_mask = np.zeros_like(depth_gt)
-            valid_mask[45:472, 43:608] = 1
-            depth_gt[valid_mask == 0] = 0
-            depth_gt = Image.fromarray(depth_gt)
-        else:
-            depth_gt = depth_gt.crop((43, 45, 608, 472))
-            image = image.crop((43, 45, 608, 472))
-        return image, depth_gt
-        
+            
     def load_rgb(self, idx):
         path_file = os.path.join(self.args.data_path, self.filenames[idx]["filename"])
 
