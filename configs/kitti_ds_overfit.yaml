@@ -1,12 +1,12 @@
-batch_size: 1
+batch_size: 8
+mode: train
 
 data_path: /mnt/wext/msc_studies/monodepth_project/data/kitti/kitti-depth
-filenames_file: /mnt/wext/msc_studies/monodepth_project/data/data_splits/kitti_official_valid.txt
-gt_path: /mnt/wext/cv_data/kitti-full/kitti-depth-completion/data_depth_annotated/val
-do_kb_crop: true
-mode: train
+filenames_file: /mnt/wext/msc_studies/monodepth_project/data/data_splits/kitti_dc.json
 
 input_height: 352
 input_width: 1216
+
+do_kb_crop: true
 do_random_rotate: false
 degree: 2.5

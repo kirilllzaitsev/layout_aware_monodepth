@@ -91,6 +91,8 @@ def run():
 
     if cfg.use_single_sample and cfg.do_overfit:
         ds_args.batch_size = 1
+        cfg.num_epochs = 100
+        cfg.vis_freq_epochs = 10
         ds_subset = torch.utils.data.Subset(ds, range(0, 1))
         train_subset = val_subset = test_subset = ds_subset
     else:
@@ -142,9 +144,7 @@ def run():
 
     global_step = 0
 
-
     for epoch in range(cfg.num_epochs):
-
         train_batch_bar = tqdm(total=len(train_loader), leave=True)
         val_batch_bar = tqdm(total=len(val_loader), leave=True)
         test_batch_bar = tqdm(total=len(test_loader), leave=True)

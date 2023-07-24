@@ -1,6 +1,6 @@
 class cfg:
-    num_epochs = 100
-    vis_freq_epochs = 10
+    num_epochs = 20
+    vis_freq_epochs = 3
     exp_disabled = False
     do_save_model = False
     do_overlay_lines = False
