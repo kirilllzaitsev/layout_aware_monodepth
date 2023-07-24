@@ -13,6 +13,7 @@ from layout_aware_monodepth.dataset.monodepth import KITTIDataset, NYUv2Dataset
 from layout_aware_monodepth.dataset.transforms import ToTensor, train_transform
 from layout_aware_monodepth.model import DepthModel
 from layout_aware_monodepth.pipeline_utils import create_tracking_exp
+from layout_aware_monodepth.vis_utils import plot_samples_and_preds
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -53,6 +54,7 @@ def run():
     parser.add_argument("--do_overfit", action="store_true")
     parser.add_argument("--exp_disabled", action="store_true")
     parser.add_argument("--do_overlay_lines", action="store_true")
+    parser.add_argument("--exp_tags", nargs="+", default=[])
     args = parser.parse_args()
 
     if args.ds == "kitti":
@@ -106,6 +108,7 @@ def run():
             "overfit" if args.do_overfit else "full",
             "overlay" if args.do_overlay_lines else "no_overlay",
         ]
+        + args.exp_tags
     )
 
     global_step = 0
@@ -161,8 +164,6 @@ def run():
 
         if (epoch - 1) % cfg.vis_freq_epochs == 0 or epoch == cfg.num_epochs - 1:
             out = train_step_res["pred"].detach().cpu().permute(0, 2, 3, 1)
-            images = train_batch["image"].detach().cpu().permute(0, 2, 3, 1)
-            depths = train_batch["depth"].detach().cpu()
 
             name = "preds/depth"
             for idx in range(len(out)):
@@ -173,25 +174,12 @@ def run():
                 )
 
             name = "preds/sample"
-            for idx, (img, in_depth, depth) in enumerate(zip(images, depths, out)):
-                concat_sample = torch.cat(
-                    [in_depth.repeat(1, 1, 3), depth.repeat(1, 1, 3), img],
-                    dim=0,
-                )
-
-                if args.ds == "nyu":
-                    target_shape = [
-                        concat_sample.shape[0] // 2,
-                        concat_sample.shape[1] // 2,
-                    ]
-                    concat_sample = tv.transforms.Resize(target_shape, antialias=True)(
-                        concat_sample.permute(2, 0, 1)
-                    ).permute(1, 2, 0)
-                experiment.log_image(
-                    concat_sample,
-                    f"{name}_{idx}",
-                    step=epoch,
-                )
+            fig = plot_samples_and_preds(train_batch, out)
+            experiment.log_figure(
+                name,
+                fig,
+                step=epoch,
+            )
 
         if epoch in [50] and cfg.do_save_model:
             torch.save(model.state_dict(), f"model_{epoch}.pth")
