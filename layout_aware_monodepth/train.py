@@ -142,13 +142,17 @@ def run():
 
     global_step = 0
 
-    train_batch_bar = tqdm(total=len(train_loader), leave=True)
-    test_batch_bar = tqdm(total=len(test_loader), leave=True)
+
     for epoch in range(cfg.num_epochs):
+
+        train_batch_bar = tqdm(total=len(train_loader), leave=True)
+        val_batch_bar = tqdm(total=len(val_loader), leave=True)
+        test_batch_bar = tqdm(total=len(test_loader), leave=True)
+
         epoch_bar.set_description(f"Epoch {epoch}")
 
         train_running_losses = []
-        test_running_losses = []
+        val_running_losses = []
 
         for train_batch in train_loader:
             train_step_res = train_step(model, train_batch, criterion, optimizer)
@@ -163,20 +167,20 @@ def run():
                 step=global_step,
             )
 
-        for test_batch in test_loader:
-            test_step_res = test_step(model, test_batch)
-            test_running_losses.append(test_step_res["loss"].item())
-            test_batch_bar.update(1)
-            test_batch_bar.set_postfix(**{"test_loss": test_step_res["loss"].item()})
+        for val_batch in val_loader:
+            val_step_res = test_step(model, val_batch)
+            val_running_losses.append(val_step_res["loss"].item())
+            val_batch_bar.update(1)
+            val_batch_bar.set_postfix(**{"val_loss": val_step_res["loss"].item()})
 
         avg_train_loss = sum(train_running_losses) / len(train_running_losses)
-        avg_test_loss = sum(test_running_losses) / len(test_running_losses)
+        avg_val_loss = sum(val_running_losses) / len(val_running_losses)
 
         epoch_bar.update(1)
         epoch_bar.set_postfix(
             **{
                 "avg_train_loss": avg_train_loss,
-                "avg_test_loss": avg_test_loss,
+                "avg_val_loss": avg_val_loss,
             }
         )
 
@@ -186,8 +190,8 @@ def run():
             step=epoch,
         )
         experiment.log_metric(
-            "epoch/test_loss",
-            avg_test_loss,
+            "epoch/val_loss",
+            avg_val_loss,
             step=epoch,
         )
 
@@ -219,6 +223,25 @@ def run():
 
         if epoch in [50] and cfg.do_save_model:
             torch.save(model.state_dict(), f"model_{epoch}.pth")
+
+        train_batch_bar.close()
+        val_batch_bar.close()
+        test_batch_bar.close()
+
+    test_running_losses = []
+    for test_batch in test_loader:
+        test_step_res = test_step(model, test_batch)
+        test_running_losses.append(test_step_res["loss"].item())
+        test_batch_bar.update(1)
+        test_batch_bar.set_postfix(**{"test_loss": test_step_res["loss"].item()})
+
+    avg_test_loss = sum(test_running_losses) / len(test_running_losses)
+
+    experiment.log_metric(
+        "epoch/test_loss",
+        avg_test_loss,
+        step=epoch,
+    )
 
     experiment.add_tags(["finished"])
 
