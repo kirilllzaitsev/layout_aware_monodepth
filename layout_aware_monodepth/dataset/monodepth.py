@@ -151,14 +151,17 @@ class KITTIDataset(MonodepthDataset):
     def __init__(self, *args_, **kwargs):
         super().__init__(*args_, **kwargs)
 
-        with open(self.args.filenames_file, "r") as f:
-            self.filenames = f.readlines()
+        with open(self.args.filenames_file) as json_file:
+            json_data = json.load(json_file)
+            self.filenames = json_data[self.mode]
 
     def load_img_and_depth(self, idx):
-        image_path = self.filenames[idx].strip()
-        image_path = os.path.join(self.args.data_path, image_path)
-
-        depth_path = image_path.replace("image", "groundtruth_depth", 2)
+        image_path = os.path.join(
+            self.args.data_path, "data_rgb", self.filenames[idx]["rgb"]
+        )
+        depth_path = os.path.join(
+            self.args.data_path, "data_depth_annotated", self.filenames[idx]["gt"]
+        )
 
         image = self.load_rgb(image_path)
         depth_gt = self.load_rgb(depth_path)
@@ -209,7 +212,8 @@ class NYUv2Dataset(MonodepthDataset):
         image = self._load_rgb(f)
         return image
 
-    def _load_rgb(self, f):
+    @classmethod
+    def _load_rgb(cls, f):
         rgb_h5 = f["rgb"][:].transpose(1, 2, 0)
         image = Image.fromarray(rgb_h5, mode="RGB")
         return image

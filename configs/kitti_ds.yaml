@@ -1,7 +1,7 @@
 batch_size: 8
 
 data_path: /mnt/wext/msc_studies/monodepth_project/data/kitti/kitti-depth
-filenames_file: /mnt/wext/msc_studies/monodepth_project/data/data_splits/kitti_official_valid.txt
+filenames_file: /mnt/wext/msc_studies/monodepth_project/data/data_splits/kitti_dc.json
 do_kb_crop: true
 mode: train
 
