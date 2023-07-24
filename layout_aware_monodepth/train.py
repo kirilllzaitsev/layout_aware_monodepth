@@ -53,9 +53,9 @@ def run():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ds", type=str, default="kitti", choices=["kitti", "nyu"])
     parser.add_argument("--do_overfit", action="store_true")
-    parser.add_argument("--exp_disabled", action="store_true")
     parser.add_argument("--do_overlay_lines", action="store_true")
     parser.add_argument("--use_single_sample", action="store_true")
+    parser.add_argument("--exp_disabled", action="store_true")
     parser.add_argument("--exp_tags", nargs="+", default=[])
     args = parser.parse_args()
 
@@ -89,20 +89,37 @@ def run():
         do_overlay_lines=cfg.do_overlay_lines,
     )
 
-    benchmark_paths = json.load(open("../data/data_splits/eval_samples.json"))[args.ds]
-
-    if cfg.do_overfit:
+    if cfg.use_single_sample and cfg.do_overfit:
+        ds_args.batch_size = 1
         ds_subset = torch.utils.data.Subset(ds, range(0, 1))
+        train_subset = val_subset = test_subset = ds_subset
     else:
-        ds_subset = ds
+        if cfg.do_overfit:
+            ds_subset = torch.utils.data.Subset(ds, range(0, 280))
+        else:
+            ds_subset = ds
+        train_ds_len = int(len(ds_subset) * 0.8)
+        val_ds_len = int(len(ds_subset) * 0.1)
+        train_subset = torch.utils.data.Subset(ds_subset, range(0, train_ds_len))
+        val_subset = torch.utils.data.Subset(
+            ds_subset, range(train_ds_len, train_ds_len + val_ds_len)
+        )
+        test_subset = torch.utils.data.Subset(
+            ds_subset, range(train_ds_len + val_ds_len, len(ds_subset))
+        )
 
-    train_loader = DataLoader(ds_subset, batch_size=ds_args.batch_size, shuffle=False)
-    val_loader = DataLoader(ds_subset, batch_size=ds_args.batch_size)
-    test_loader = DataLoader(ds_subset, batch_size=ds_args.batch_size)
+    train_loader = DataLoader(
+        train_subset, batch_size=ds_args.batch_size, shuffle=False
+    )
+    val_loader = DataLoader(val_subset, batch_size=ds_args.batch_size)
+    test_loader = DataLoader(test_subset, batch_size=ds_args.batch_size)
 
     if cfg.use_single_sample:
         benchmark_batch = next(iter(train_loader))
     else:
+        benchmark_paths = json.load(open("../data/data_splits/eval_samples.json"))[
+            args.ds
+        ]
         benchmark_batch = ds.load_benchmark_batch(benchmark_paths)
 
     model = DepthModel()
