@@ -1,3 +1,4 @@
+import segmentation_models_pytorch as smp
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -5,25 +6,27 @@ import torch.nn.functional as F
 
 class DepthModel(nn.Module):
     # initializers
-    def __init__(self, decoder_first_channel=256):
+    def __init__(
+        self,
+        encoder_name="timm-mobilenetv3_large_100",
+        encoder_weights="imagenet",
+        decoder_activation="sigmoid",
+        decoder_first_channel=256,
+    ):
         super().__init__()
-
-        self.final_conv = nn.Conv2d(3, 1, 3, 1, 1)
-
-        import segmentation_models_pytorch as smp
 
         decoder_channels = [decoder_first_channel]
         for i in range(1, 5):
-            decoder_channels.append(decoder_first_channel // (2 ** i))
+            decoder_channels.append(decoder_first_channel // (2**i))
 
         model = smp.Unet(
-            encoder_name="timm-mobilenetv3_large_100",
-            encoder_weights="imagenet",
+            encoder_name=encoder_name,
+            encoder_weights=encoder_weights,
             in_channels=3,
             classes=1,
-            activation="sigmoid",
-            encoder_depth=5,
-            decoder_channels=decoder_channels
+            activation=decoder_activation,
+            encoder_depth=len(decoder_channels),
+            decoder_channels=decoder_channels,
         )
 
         self.encoder = model.encoder
