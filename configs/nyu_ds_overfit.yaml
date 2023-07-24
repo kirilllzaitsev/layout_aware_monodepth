@@ -1,0 +1,12 @@
+batch_size: 1
+
+data_path: /mnt/wext/msc_studies/monodepth_project/data/nyuv2/nyudepthv2
+
+filenames_file: /mnt/wext/cv_data/nyuv2/nyudepthv2/nlspn_splits/nyu.json
+do_kb_crop: true
+mode: train
+
+input_height: 480
+input_width: 640
+do_random_rotate: false
+degree: 2.5

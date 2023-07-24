@@ -1,0 +1,6 @@
+data_path: /mnt/wext/msc_studies/monodepth_project/data/nyuv2/nyudepthv2
+
+filenames_file: /mnt/wext/msc_studies/monodepth_project/data/data_splits/nyu.json
+do_random_rotate: false
+input_height: 480
+input_width: 640
