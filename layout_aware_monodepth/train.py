@@ -55,6 +55,7 @@ def run():
     parser.add_argument("--do_overfit", action="store_true")
     parser.add_argument("--exp_disabled", action="store_true")
     parser.add_argument("--do_overlay_lines", action="store_true")
+    parser.add_argument("--use_single_sample", action="store_true")
     parser.add_argument("--exp_tags", nargs="+", default=[])
     args = parser.parse_args()
 
@@ -70,6 +71,9 @@ def run():
             config_path = "../configs/nyu_ds.yaml"
 
     cfg.exp_disabled = args.exp_disabled
+    cfg.use_single_sample = args.use_single_sample
+    cfg.do_overfit = args.do_overfit
+    cfg.do_overlay_lines = args.do_overlay_lines
 
     ds_args = argparse.Namespace(**yaml.load(open(config_path), Loader=yaml.FullLoader))
 
@@ -82,13 +86,12 @@ def run():
         ds_args,
         ds_args.mode,
         transform=train_transform,
-        do_overlay_lines=args.do_overlay_lines,
+        do_overlay_lines=cfg.do_overlay_lines,
     )
 
-    benchmark_paths = json.load(open('../data/data_splits/eval_samples.json'))[args.ds]
-    benchmark_batch = ds.load_benchmark_batch(benchmark_paths)
-    
-    if args.do_overfit:
+    benchmark_paths = json.load(open("../data/data_splits/eval_samples.json"))[args.ds]
+
+    if cfg.do_overfit:
         ds_subset = torch.utils.data.Subset(ds, range(0, 1))
     else:
         ds_subset = ds
@@ -97,6 +100,10 @@ def run():
     val_loader = DataLoader(ds_subset, batch_size=ds_args.batch_size)
     test_loader = DataLoader(ds_subset, batch_size=ds_args.batch_size)
 
+    if cfg.use_single_sample:
+        benchmark_batch = next(iter(train_loader))
+    else:
+        benchmark_batch = ds.load_benchmark_batch(benchmark_paths)
 
     model = DepthModel()
     model.to(device)
@@ -110,8 +117,8 @@ def run():
     experiment.add_tags(
         [
             args.ds,
-            "overfit" if args.do_overfit else "full",
-            "overlay" if args.do_overlay_lines else "no_overlay",
+            "overfit" if cfg.do_overfit else "full",
+            "overlay" if cfg.do_overlay_lines else "no_overlay",
         ]
         + args.exp_tags
     )
@@ -168,7 +175,14 @@ def run():
         )
 
         if (epoch - 1) % cfg.vis_freq_epochs == 0 or epoch == cfg.num_epochs - 1:
-            out = train_step_res["pred"].detach().cpu().permute(0, 2, 3, 1)
+            benchmark_step_res = test_step(model, benchmark_batch)
+            out = benchmark_step_res["pred"].detach().cpu().permute(0, 2, 3, 1)
+
+            experiment.log_metric(
+                "epoch/benchmark_loss",
+                benchmark_step_res["loss"].item(),
+                step=epoch,
+            )
 
             name = "preds/depth"
             for idx in range(len(out)):
@@ -179,7 +193,7 @@ def run():
                 )
 
             name = "preds/sample"
-            fig = plot_samples_and_preds(train_batch, out)
+            fig = plot_samples_and_preds(benchmark_batch, out)
             experiment.log_figure(
                 name,
                 fig,
