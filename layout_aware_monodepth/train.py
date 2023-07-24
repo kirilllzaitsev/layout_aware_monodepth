@@ -1,4 +1,5 @@
 import argparse
+import json
 
 import pytorch_lightning as pl
 import torch
@@ -84,6 +85,9 @@ def run():
         do_overlay_lines=args.do_overlay_lines,
     )
 
+    benchmark_paths = json.load(open('../data/data_splits/eval_samples.json'))[args.ds]
+    benchmark_batch = ds.load_benchmark_batch(benchmark_paths)
+    
     if args.do_overfit:
         ds_subset = torch.utils.data.Subset(ds, range(0, 1))
     else:
@@ -92,6 +96,7 @@ def run():
     train_loader = DataLoader(ds_subset, batch_size=ds_args.batch_size, shuffle=False)
     val_loader = DataLoader(ds_subset, batch_size=ds_args.batch_size)
     test_loader = DataLoader(ds_subset, batch_size=ds_args.batch_size)
+
 
     model = DepthModel()
     model.to(device)

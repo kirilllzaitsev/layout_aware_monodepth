@@ -18,6 +18,7 @@ from layout_aware_monodepth.dataset.transforms import (
     kb_crop,
     random_crop,
     rotate_image,
+    test_transform,
     train_preprocess,
 )
 
@@ -51,9 +52,9 @@ class MonodepthDataset(Dataset):
     @lru_cache(maxsize=128)
     def __getitem__(self, idx):
         if self.mode == "train":
-            image, depth_gt = self.load_img_and_depth(idx)
+            image, depth_gt = self.load_img_and_depth(self.filenames[idx])
 
-            sample = self.prep_train_sample(image, depth_gt)
+            sample = self.prep_train_sample(image, depth_gt, do_augment=self.do_augment)
 
         else:
             image = self.load_rgb(idx)
@@ -65,6 +66,60 @@ class MonodepthDataset(Dataset):
         if self.transform:
             sample["image"] = self.transform(sample["image"])
 
+        return sample
+
+    def load_benchmark_batch(self, sample_paths):
+        images = []
+        depths = []
+        for paths_map in sample_paths:
+            image, depth_gt = self.load_img_and_depth(paths_map)
+            sample = self.prep_train_sample(image, depth_gt, do_augment=False)
+
+            if self.do_overlay_lines:
+                sample["image"] = self.overlay_lines(sample["image"])
+            sample["image"] = test_transform(sample["image"])
+
+            images.append(sample["image"])
+            depths.append(torch.from_numpy(sample["depth"]))
+        return {"image": torch.stack(images), "depth": torch.stack(depths)}
+
+    def prep_train_sample(self, image, depth_gt, do_augment=False):
+        if self.args.do_random_rotate and do_augment:
+            random_angle = (random.random() - 0.5) * 2 * self.args.degree
+            image = rotate_image(image, random_angle)
+            depth_gt = rotate_image(depth_gt, random_angle, flag=Image.NEAREST)
+
+        image = np.asarray(image, dtype=np.float32) / 255.0
+        depth_gt = np.asarray(depth_gt, dtype=np.float32)
+        depth_gt = np.expand_dims(depth_gt, axis=2)
+
+        if (
+            image.shape[0] != self.args.input_height
+            or image.shape[1] != self.args.input_width
+        ):
+            print(
+                f"image.shape: {image.shape} and self.args.input_height: {self.args.input_height}. doing random crop"
+            )
+            image, depth_gt = random_crop(
+                image, depth_gt, self.args.input_height, self.args.input_width
+            )
+        if do_augment:
+            image, depth_gt = train_preprocess(image, depth_gt)
+
+        depth_gt = self.convert_depth_to_meters(depth_gt)
+        depth_gt /= self.max_depth
+
+        sample = {
+            "image": image,
+            "depth": depth_gt,
+        }
+        return sample
+
+    def prep_test_sample(self, image):
+        image = np.asarray(image, dtype=np.float32)
+        image /= 255.0
+
+        sample = {"image": image}
         return sample
 
     def overlay_lines(self, image):
@@ -93,39 +148,7 @@ class MonodepthDataset(Dataset):
 
         return overlay
 
-    def prep_train_sample(self, image, depth_gt):
-        if self.args.do_random_rotate and self.do_augment:
-            random_angle = (random.random() - 0.5) * 2 * self.args.degree
-            image = rotate_image(image, random_angle)
-            depth_gt = rotate_image(depth_gt, random_angle, flag=Image.NEAREST)
-
-        image = np.asarray(image, dtype=np.float32) / 255.0
-        depth_gt = np.asarray(depth_gt, dtype=np.float32)
-        depth_gt = np.expand_dims(depth_gt, axis=2)
-
-        if (
-            image.shape[0] != self.args.input_height
-            or image.shape[1] != self.args.input_width
-        ):
-            print(
-                f"image.shape: {image.shape} and self.args.input_height: {self.args.input_height}. doing random crop"
-            )
-            image, depth_gt = random_crop(
-                image, depth_gt, self.args.input_height, self.args.input_width
-            )
-        if self.do_augment:
-            image, depth_gt = train_preprocess(image, depth_gt)
-
-        depth_gt = self.convert_depth_to_meters(depth_gt)
-        depth_gt /= self.max_depth
-
-        sample = {
-            "image": image,
-            "depth": depth_gt,
-        }
-        return sample
-
-    def load_img_and_depth(self, idx):
+    def load_img_and_depth(self, paths_map):
         raise NotImplementedError
 
     def convert_depth_to_meters(self, depth_gt):
@@ -133,13 +156,6 @@ class MonodepthDataset(Dataset):
 
     def load_rgb(self, path):
         raise NotImplementedError
-
-    def prep_test_sample(self, image):
-        image = np.asarray(image, dtype=np.float32)
-        image /= 255.0
-
-        sample = {"image": image}
-        return sample
 
     def __len__(self):
         return len(self.filenames)
@@ -155,14 +171,19 @@ class KITTIDataset(MonodepthDataset):
             json_data = json.load(json_file)
             self.filenames = json_data[self.mode]
 
-    def load_img_and_depth(self, idx):
-        image_path = os.path.join(
-            self.args.data_path, "data_rgb", self.filenames[idx]["rgb"]
-        )
-        depth_path = os.path.join(
-            self.args.data_path, "data_depth_annotated", self.filenames[idx]["gt"]
-        )
+    def load_img_and_depth(self, paths_map):
+        if "data_" in paths_map["rgb"]:
+            image_path = os.path.join(self.args.data_path, paths_map["rgb"])
+            depth_path = os.path.join(self.args.data_path, paths_map["gt"])
+        else:
+            image_path = os.path.join(self.args.data_path, "data_rgb", paths_map["rgb"])
+            depth_path = os.path.join(
+                self.args.data_path, "data_depth_annotated", paths_map["gt"]
+            )
 
+        return self.load_img_and_depth_from_path(image_path, depth_path)
+
+    def load_img_and_depth_from_path(self, image_path, depth_path):
         image = self.load_rgb(image_path)
         depth_gt = self.load_rgb(depth_path)
 
@@ -187,9 +208,12 @@ class NYUv2Dataset(MonodepthDataset):
             json_data = json.load(json_file)
             self.filenames = json_data[self.mode]
 
-    def load_img_and_depth(self, idx):
-        path_file = os.path.join(self.args.data_path, self.filenames[idx]["filename"])
+    def load_img_and_depth(self, paths_map):
+        path_file = os.path.join(self.args.data_path, paths_map["filename"])
 
+        return self.load_img_and_depth_from_path(path_file)
+
+    def load_img_and_depth_from_path(self, path_file):
         f = h5py.File(path_file, "r")
         image = self._load_rgb(f)
 
