@@ -62,11 +62,6 @@ class DepthModel(nn.Module):
         return x
 
 
-def pad_to_match(x, y):
-    diffY = x.size()[2] - y.size()[2]
-    diffX = x.size()[3] - y.size()[3]
-    y = F.pad(y, (diffX // 2, diffX - diffX // 2, diffY // 2, diffY - diffY // 2))
-    return y
 
 
 if __name__ == "__main__":
