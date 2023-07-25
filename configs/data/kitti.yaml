@@ -1,0 +1,16 @@
+_target_: layout_aware_monodepth.data.kitti_datamodule.KittiDataModule
+batch_size: 8
+num_workers: 20
+pin_memory: False
+ds_config:
+  mode: train
+
+  data_path: /mnt/wext/msc_studies/monodepth_project/data/kitti/kitti-depth
+  filenames_file: /mnt/wext/msc_studies/monodepth_project/data/data_splits/kitti_dc.json
+
+  input_height: 352
+  input_width: 1216
+
+  do_kb_crop: true
+  do_random_rotate: false
+  degree: 2.5

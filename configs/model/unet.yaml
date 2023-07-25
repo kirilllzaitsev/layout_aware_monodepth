@@ -1,9 +1,4 @@
-_target_: layout_aware_monodepth.models.kbnet_module.KBnetLitModule
-
-outlier_removal:
-  _target_: kbnet.net_utils.OutlierRemoval
-  kernel_size: 7
-  threshold: 1.5
+_target_: layout_aware_monodepth.models.unet_module.UnetLitModule
 
 transforms:
   train:

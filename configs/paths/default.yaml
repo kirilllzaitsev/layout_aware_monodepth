@@ -6,7 +6,6 @@ root_dir: ${oc.env:PROJECT_ROOT}
 # path to data directory
 data_dir: ${paths.root_dir}/data
 
-forest_data_dir: ${paths.data_dir}/forest
 kitti_data_dir: ${paths.data_dir}/kitti-full
 
 # path to logging directory

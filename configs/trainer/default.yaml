@@ -1,5 +1,4 @@
-_target_: rsl_depth_completion.trainer.Trainer
-# _target_: lightning.pytorch.trainer.Trainer
+_target_: lightning.pytorch.trainer.Trainer
 
 default_root_dir: ${paths.output_dir}
 
