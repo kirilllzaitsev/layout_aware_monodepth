@@ -111,7 +111,7 @@ def run():
         )
 
     train_loader = DataLoader(
-        train_subset, batch_size=ds_args.batch_size, shuffle=False
+        train_subset, batch_size=ds_args.batch_size, shuffle=True
     )
     val_loader = DataLoader(val_subset, batch_size=ds_args.batch_size)
     test_loader = DataLoader(test_subset, batch_size=ds_args.batch_size)
