@@ -17,6 +17,7 @@ from layout_aware_monodepth.data.transforms import (
     interpolate_depth_depth,
     kb_crop,
     random_crop,
+    resize_inputs,
     rotate_image,
     test_transform,
     train_preprocess,
@@ -29,6 +30,7 @@ def preprocessing_transforms(mode):
 
 class MonodepthDataset(Dataset):
     max_depth = None
+    target_shape = None
 
     def __init__(
         self, args, mode, transform=None, do_augment=False, do_overlay_lines=False
@@ -93,16 +95,8 @@ class MonodepthDataset(Dataset):
         depth_gt = np.asarray(depth_gt, dtype=np.float32)
         depth_gt = np.expand_dims(depth_gt, axis=2)
 
-        if (
-            image.shape[0] != self.args.input_height
-            or image.shape[1] != self.args.input_width
-        ):
-            print(
-                f"image.shape: {image.shape} and self.args.input_height: {self.args.input_height}. doing random crop"
-            )
-            image, depth_gt = random_crop(
-                image, depth_gt, self.args.input_height, self.args.input_width
-            )
+        image, depth_gt = resize_inputs(image, depth_gt, self.target_shape)
+
         if do_augment:
             image, depth_gt = train_preprocess(image, depth_gt)
 
@@ -164,6 +158,7 @@ class MonodepthDataset(Dataset):
 
 class KITTIDataset(MonodepthDataset):
     max_depth = 80.0
+    target_shape = (640, 192)
 
     def __init__(self, *args_, use_eigen=False, **kwargs):
         self.use_eigen = use_eigen
@@ -172,11 +167,10 @@ class KITTIDataset(MonodepthDataset):
         with open(self.args.filenames_file) as json_file:
             json_data = json.load(json_file)
             if use_eigen:
-                self.filenames = json_data['eigen'][self.mode]
-                self.args.data_path = self.args.data_path.replace('/kitti-depth', '')
+                self.filenames = json_data["eigen"][self.mode]
+                self.args.data_path = self.args.data_path.replace("/kitti-depth", "")
             else:
                 self.filenames = json_data[self.mode]
-
 
     def load_img_and_depth(self, paths_map):
         if self.use_eigen:
@@ -217,6 +211,7 @@ class KITTIDataset(MonodepthDataset):
 
 class NYUv2Dataset(MonodepthDataset):
     max_depth = 10.0
+    target_shape = (320, 240)
 
     def __init__(self, *args_, **kwargs):
         super().__init__(*args_, **kwargs)

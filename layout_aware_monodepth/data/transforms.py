@@ -1,5 +1,6 @@
 import random
 
+import cv2
 import numpy as np
 import torch
 from ip_basic import depth_map_utils
@@ -26,6 +27,23 @@ def kb_crop(image: Image.Image, depth_gt=None):
 def rotate_image(image, angle, flag=Image.BILINEAR):
     result = image.rotate(angle, resample=flag)
     return result
+
+
+def resize_inputs(image, depth, target_shape):
+    def _resize(x):
+        x = cv2.resize(
+            x,  # original image
+            target_shape,
+            #    (0,0), # set fx and fy, not the final size
+            #    fx=0.5,
+            #    fy=0.5,
+            interpolation=cv2.INTER_NEAREST,
+        )
+        return x
+
+    image = _resize(image)
+    depth = _resize(depth)
+    return image, depth
 
 
 def random_crop(img, depth, height, width):
@@ -135,7 +153,6 @@ def interpolate_depth_depth(depth, do_multiscale=False, *args, **kwargs):
     else:
         ddm = depth_map_utils.fill_in_fast(depth.astype("float32"), *args, **kwargs)
     return ddm
-
 
 
 train_transform = transforms.Compose(
