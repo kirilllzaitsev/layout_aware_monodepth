@@ -107,6 +107,7 @@ class MonodepthDataset(Dataset):
             image, depth_gt = train_preprocess(image, depth_gt)
 
         depth_gt = self.convert_depth_to_meters(depth_gt)
+        depth_gt = np.clip(depth_gt, 0, self.max_depth)
         depth_gt /= self.max_depth
 
         sample = {
@@ -208,7 +209,6 @@ class KITTIDataset(MonodepthDataset):
 
     def convert_depth_to_meters(self, depth_gt):
         depth_gt = depth_gt / 256.0
-        depth_gt = np.clip(depth_gt, 0, self.max_depth)
         return depth_gt
 
     def load_rgb(self, path):
