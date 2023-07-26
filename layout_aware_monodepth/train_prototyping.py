@@ -10,8 +10,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from layout_aware_monodepth.cfg import cfg
-from layout_aware_monodepth.dataset.monodepth import KITTIDataset, NYUv2Dataset
-from layout_aware_monodepth.dataset.transforms import ToTensor, train_transform
+from layout_aware_monodepth.data.monodepth import KITTIDataset, NYUv2Dataset
+from layout_aware_monodepth.data.transforms import ToTensor, train_transform
 from layout_aware_monodepth.model import DepthModel
 from layout_aware_monodepth.pipeline_utils import create_tracking_exp
 from layout_aware_monodepth.vis_utils import plot_samples_and_preds
@@ -110,9 +110,7 @@ def run():
             ds_subset, range(train_ds_len + val_ds_len, len(ds_subset))
         )
 
-    train_loader = DataLoader(
-        train_subset, batch_size=ds_args.batch_size, shuffle=True
-    )
+    train_loader = DataLoader(train_subset, batch_size=ds_args.batch_size, shuffle=True)
     val_loader = DataLoader(val_subset, batch_size=ds_args.batch_size)
     test_loader = DataLoader(test_subset, batch_size=ds_args.batch_size)
 
@@ -214,7 +212,13 @@ def run():
                 )
 
             name = "preds/sample"
-            fig = plot_samples_and_preds(benchmark_batch, out)
+            fig = plot_samples_and_preds(
+                benchmark_batch,
+                out,
+                with_depth_diff=True,
+                with_colorbar=True,
+                max_depth=ds.max_depth,
+            )
             experiment.log_figure(
                 name,
                 fig,
