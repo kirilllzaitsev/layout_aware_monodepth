@@ -12,7 +12,7 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
-from layout_aware_monodepth.dataset.transforms import (
+from layout_aware_monodepth.data.transforms import (
     ToTensor,
     interpolate_depth_depth,
     kb_crop,
@@ -43,7 +43,7 @@ class MonodepthDataset(Dataset):
         self.filenames = []
 
         if self.do_overlay_lines:
-            from layout_aware_monodepth.dataset.tmp import load_deeplsd
+            from layout_aware_monodepth.data.tmp import load_deeplsd
 
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -164,15 +164,30 @@ class MonodepthDataset(Dataset):
 class KITTIDataset(MonodepthDataset):
     max_depth = 100.0
 
-    def __init__(self, *args_, **kwargs):
+    def __init__(self, *args_, use_eigen=False, **kwargs):
+        self.use_eigen = use_eigen
         super().__init__(*args_, **kwargs)
 
         with open(self.args.filenames_file) as json_file:
             json_data = json.load(json_file)
-            self.filenames = json_data[self.mode]
+            if use_eigen:
+                self.filenames = json_data['eigen'][self.mode]
+                self.args.data_path = self.args.data_path.replace('/kitti-depth', '')
+            else:
+                self.filenames = json_data[self.mode]
+
 
     def load_img_and_depth(self, paths_map):
-        if "data_" in paths_map["rgb"]:
+        if self.use_eigen:
+            image_path = os.path.join(
+                self.args.data_path, "kitti_raw_data", paths_map["rgb"]
+            )
+            depth_path = os.path.join(
+                self.args.data_path,
+                f"kitti_depth_completion/train_val_split/ground_truth/{self.mode}",
+                paths_map["gt"],
+            )
+        elif "data_" in paths_map["rgb"]:
             image_path = os.path.join(self.args.data_path, paths_map["rgb"])
             depth_path = os.path.join(self.args.data_path, paths_map["gt"])
         else:
