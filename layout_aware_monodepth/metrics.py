@@ -1,5 +1,5 @@
+import numpy as np
 import torch
-from kbnet import eval_utils
 from torchmetrics import Metric, MultioutputWrapper
 
 
@@ -45,14 +45,51 @@ class TotalMetric(Metric):
             preds.detach().cpu().numpy() if isinstance(preds, torch.Tensor) else preds
         )
         target = target.cpu().numpy() if isinstance(target, torch.Tensor) else target
-        self.mae += eval_utils.mean_abs_err(1000.0 * preds, 1000.0 * target)
-        self.rmse += eval_utils.root_mean_sq_err(1000.0 * preds, 1000.0 * target)
-        self.imae += eval_utils.inv_mean_abs_err(0.001 * preds, 0.001 * target)
-        self.irmse += eval_utils.inv_root_mean_sq_err(0.001 * preds, 0.001 * target)
+        self.mae += 0
+        self.rmse += 0
+        self.imae += 0
+        self.irmse += 0
         self.total += target.shape[0]
 
     def compute(self):
         return self.mae, self.rmse, self.imae, self.irmse
+
+
+def compute_errors(gt, pred):
+    """Computes relevant metrics on non-zero pixels on ground truth depth map."""
+    nonzero_mask = gt > 0
+    gt = gt[nonzero_mask]
+    pred = pred[nonzero_mask]
+
+    thresh = np.maximum((gt / pred), (pred / gt))
+    delta1 = (thresh < 1.25).mean()
+    delta2 = (thresh < 1.25**2).mean()
+    delta3 = (thresh < 1.25**3).mean()
+
+    abs_rel = np.mean(np.abs(gt - pred) / gt)
+    sq_rel = np.mean(((gt - pred) ** 2) / gt)
+
+    rmse = (gt - pred) ** 2
+    rmse = np.sqrt(rmse.mean())
+
+    rmse_log = (np.log(gt) - np.log(pred)) ** 2
+    rmse_log = np.sqrt(rmse_log.mean())
+
+    err = np.log(pred) - np.log(gt)
+    silog = np.sqrt(np.mean(err**2) - np.mean(err) ** 2) * 100
+
+    log_10 = (np.abs(np.log10(gt) - np.log10(pred))).mean()
+    return dict(
+        abs_rel=abs_rel,
+        rmse=rmse,
+        sq_rel=sq_rel,
+        rmse_log=rmse_log,
+        delta1=delta1,
+        delta2=delta2,
+        delta3=delta3,
+        log_10=log_10,
+        silog=silog,
+    )
 
 
 if __name__ == "__main__":
