@@ -162,7 +162,7 @@ class MonodepthDataset(Dataset):
 
 
 class KITTIDataset(MonodepthDataset):
-    max_depth = 100.0
+    max_depth = 80.0
 
     def __init__(self, *args_, use_eigen=False, **kwargs):
         self.use_eigen = use_eigen
@@ -208,6 +208,7 @@ class KITTIDataset(MonodepthDataset):
 
     def convert_depth_to_meters(self, depth_gt):
         depth_gt = depth_gt / 256.0
+        depth_gt = np.clip(depth_gt, 0, self.max_depth)
         return depth_gt
 
     def load_rgb(self, path):

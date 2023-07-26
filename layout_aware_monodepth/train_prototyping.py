@@ -77,7 +77,6 @@ class Trainer:
 
 def run():
     pl.seed_everything(1234)
-    import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--ds", type=str, default="nyu", choices=["kitti", "nyu"])
