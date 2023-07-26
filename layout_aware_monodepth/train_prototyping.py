@@ -12,38 +12,67 @@ from tqdm import tqdm
 from layout_aware_monodepth.cfg import cfg
 from layout_aware_monodepth.data.monodepth import KITTIDataset, NYUv2Dataset
 from layout_aware_monodepth.data.transforms import ToTensor, train_transform
+from layout_aware_monodepth.losses import SILogLoss
+from layout_aware_monodepth.metrics import calc_metrics
 from layout_aware_monodepth.model import DepthModel
 from layout_aware_monodepth.pipeline_utils import create_tracking_exp
+from layout_aware_monodepth.postprocessing import (
+    compute_eval_mask,
+    postproc_eval_depths,
+)
 from layout_aware_monodepth.vis_utils import plot_samples_and_preds
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-# define model training step
-def train_step(model, batch, criterion, optimizer):
-    model.train()
-    x, y = batch["image"].to(device), batch["depth"].permute(0, 3, 1, 2).to(device)
-    optimizer.zero_grad()
-    out = model(x)
-    loss = criterion(out, y)
-    loss.backward()
-    optimizer.step()
-    return {"loss": loss, "pred": out}
+class Trainer:
+    def __init__(
+        self, args, model, optimizer, criterion, train_loader, val_loader, test_loader
+    ):
+        self.model = model
+        self.optimizer = optimizer
+        self.criterion = criterion
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        self.test_loader = test_loader
+        self.args = args
 
-
-# define model testing step
-def test_step(model, batch):
-    model.eval()
-    with torch.no_grad():
+    def train_step(self, model, batch, criterion, optimizer):
+        model.train()
         x, y = batch["image"].to(device), batch["depth"].permute(0, 3, 1, 2).to(device)
-        pred = model(x)
-        test_loss = calculate_loss(pred, y)
-        return {"loss": test_loss, "pred": pred}
+        optimizer.zero_grad()
+        out = model(x)
+        loss = criterion(out, y)
+        loss.backward()
+        optimizer.step()
+        return {"loss": loss.item(), "pred": out}
 
-
-def calculate_loss(input1, input2):
-    loss = F.mse_loss(input1, input2)
-    return loss
+    def test_step(self, model, batch, criterion):
+        model.eval()
+        result = {}
+        with torch.no_grad():
+            x, y = batch["image"].to(device), batch["depth"].permute(0, 3, 1, 2).to(
+                device
+            )
+            pred = model(x)
+            test_loss = criterion(pred, y)
+            result["loss"] = test_loss.item()
+            result["pred"] = pred
+            pred, y = postproc_eval_depths(
+                pred,
+                y,
+                min_depth=self.args.min_depth_eval,
+                max_depth=self.args.max_depth_eval,
+            )
+            eval_mask = compute_eval_mask(
+                y,
+                min_depth=self.args.min_depth_eval,
+                max_depth=self.args.max_depth_eval,
+                crop_type=self.args.crop_type,
+                ds_name=self.args.ds,
+            )
+            metrics = calc_metrics(pred, y, mask=eval_mask)
+            return {**result, **metrics}
 
 
 def run():
@@ -51,11 +80,20 @@ def run():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ds", type=str, default="kitti", choices=["kitti", "nyu"])
+    parser.add_argument("--ds", type=str, default="nyu", choices=["kitti", "nyu"])
     parser.add_argument("--do_overfit", action="store_true")
     parser.add_argument("--do_overlay_lines", action="store_true")
     parser.add_argument("--use_single_sample", action="store_true")
     parser.add_argument("--exp_disabled", action="store_true")
+    parser.add_argument("--crop_type", choices=["garg", "eigen"], default=None)
+
+    parser.add_argument(
+        "--min_depth_eval",
+        type=float,
+        default=1e-3,
+    )
+    parser.add_argument("--max_depth_eval", type=float, default=10)
+
     parser.add_argument("--exp_tags", nargs="+", default=[])
     args = parser.parse_args()
 
@@ -126,7 +164,7 @@ def run():
     model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    criterion = torch.nn.MSELoss()
+    criterion = SILogLoss()
 
     epoch_bar = tqdm(total=cfg.num_epochs, leave=False)
     experiment = create_tracking_exp(cfg)
@@ -142,10 +180,13 @@ def run():
 
     global_step = 0
 
+    trainer = Trainer(
+        args, model, optimizer, criterion, train_loader, val_loader, test_loader
+    )
+
     for epoch in range(cfg.num_epochs):
         train_batch_bar = tqdm(total=len(train_loader), leave=True)
         val_batch_bar = tqdm(total=len(val_loader), leave=True)
-        test_batch_bar = tqdm(total=len(test_loader), leave=True)
 
         epoch_bar.set_description(f"Epoch {epoch}")
 
@@ -153,11 +194,19 @@ def run():
         val_running_losses = []
 
         for train_batch in train_loader:
-            train_step_res = train_step(model, train_batch, criterion, optimizer)
-            loss = train_step_res["loss"].item()
+            train_step_res = trainer.train_step(
+                model, train_batch, criterion, optimizer
+            )
+            loss = train_step_res["loss"]
             train_running_losses.append(loss)
             train_batch_bar.update(1)
-            train_batch_bar.set_postfix(**{"train_loss": loss})
+            train_batch_bar.set_postfix(
+                **{
+                    f"train_{k}": v
+                    for k, v in train_step_res.items()
+                    if k not in ["pred"]
+                }
+            )
             global_step += 1
             experiment.log_metric(
                 "step/train_loss",
@@ -166,10 +215,12 @@ def run():
             )
 
         for val_batch in val_loader:
-            val_step_res = test_step(model, val_batch)
-            val_running_losses.append(val_step_res["loss"].item())
+            val_step_res = trainer.test_step(model, val_batch, criterion)
+            val_running_losses.append(val_step_res["loss"])
             val_batch_bar.update(1)
-            val_batch_bar.set_postfix(**{"val_loss": val_step_res["loss"].item()})
+            val_batch_bar.set_postfix(
+                **{f"val_{k}": v for k, v in val_step_res.items() if k not in ["pred"]}
+            )
 
         avg_train_loss = sum(train_running_losses) / len(train_running_losses)
         avg_val_loss = sum(val_running_losses) / len(val_running_losses)
@@ -194,7 +245,7 @@ def run():
         )
 
         if (epoch - 1) % cfg.vis_freq_epochs == 0 or epoch == cfg.num_epochs - 1:
-            benchmark_step_res = test_step(model, benchmark_batch)
+            benchmark_step_res = trainer.test_step(model, benchmark_batch, criterion)
             out = benchmark_step_res["pred"].detach().cpu().permute(0, 2, 3, 1)
 
             experiment.log_metric(
@@ -230,15 +281,18 @@ def run():
 
         train_batch_bar.close()
         val_batch_bar.close()
-        test_batch_bar.close()
 
+    test_batch_bar = tqdm(total=len(test_loader), leave=True)
     test_running_losses = []
     for test_batch in test_loader:
-        test_step_res = test_step(model, test_batch)
-        test_running_losses.append(test_step_res["loss"].item())
+        test_step_res = trainer.test_step(model, test_batch, criterion)
+        test_running_losses.append(test_step_res["loss"])
         test_batch_bar.update(1)
-        test_batch_bar.set_postfix(**{"test_loss": test_step_res["loss"].item()})
+        test_batch_bar.set_postfix(
+            **{f"test_{k}": v for k, v in test_step_res.items() if k not in ["pred"]}
+        )
 
+    test_batch_bar.close()
     avg_test_loss = sum(test_running_losses) / len(test_running_losses)
 
     experiment.log_metric(
