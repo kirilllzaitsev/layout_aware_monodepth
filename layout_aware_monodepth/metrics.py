@@ -55,13 +55,17 @@ class TotalMetric(Metric):
         return self.mae, self.rmse, self.imae, self.irmse
 
 
-def compute_errors(gt, pred):
+def calc_metrics(gt, pred, mask=None, min_depth=1e-3):
     """Computes relevant metrics on non-zero pixels on ground truth depth map."""
-    nonzero_mask = gt > 0
-    gt = gt[nonzero_mask]
-    pred = pred[nonzero_mask]
+    if mask is None:
+        mask = gt > min_depth
 
-    thresh = np.maximum((gt / pred), (pred / gt))
+    if isinstance(gt, torch.Tensor):
+        gt = gt[mask].cpu().numpy()
+    if isinstance(pred, torch.Tensor):
+        pred = pred[mask].detach().cpu().numpy()
+
+    thresh = np.maximum((gt / (pred + 1e-8)), (pred / (gt + 1e-8)))
     delta1 = (thresh < 1.25).mean()
     delta2 = (thresh < 1.25**2).mean()
     delta3 = (thresh < 1.25**3).mean()
