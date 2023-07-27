@@ -211,7 +211,7 @@ class KITTIDataset(MonodepthDataset):
 
 class NYUv2Dataset(MonodepthDataset):
     max_depth = 10.0
-    target_shape = (320, 240)
+    target_shape = (256, 256)
 
     def __init__(self, *args_, **kwargs):
         super().__init__(*args_, **kwargs)
