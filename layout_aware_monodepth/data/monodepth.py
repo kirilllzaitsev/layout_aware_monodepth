@@ -93,9 +93,10 @@ class MonodepthDataset(Dataset):
 
         image = np.asarray(image, dtype=np.float32) / 255.0
         depth_gt = np.asarray(depth_gt, dtype=np.float32)
-        depth_gt = np.expand_dims(depth_gt, axis=2)
 
-        image, depth_gt = resize_inputs(image, depth_gt, self.target_shape)
+        image, depth_gt = resize_inputs(image, depth_gt, target_shape=self.target_shape)
+
+        depth_gt = np.expand_dims(depth_gt, axis=2)
 
         if do_augment:
             image, depth_gt = train_preprocess(image, depth_gt)
@@ -113,6 +114,7 @@ class MonodepthDataset(Dataset):
     def prep_test_sample(self, image):
         image = np.asarray(image, dtype=np.float32)
         image /= 255.0
+        image = resize_inputs(image, target_shape=self.target_shape)
 
         sample = {"image": image}
         return sample
