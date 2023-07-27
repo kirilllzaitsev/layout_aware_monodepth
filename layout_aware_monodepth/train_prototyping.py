@@ -12,7 +12,7 @@ from tqdm import tqdm
 from layout_aware_monodepth.cfg import cfg
 from layout_aware_monodepth.data.monodepth import KITTIDataset, NYUv2Dataset
 from layout_aware_monodepth.data.transforms import ToTensor, train_transform
-from layout_aware_monodepth.losses import SILogLoss
+from layout_aware_monodepth.losses import MSELoss, SILogLoss
 from layout_aware_monodepth.metrics import calc_metrics
 from layout_aware_monodepth.model import DepthModel
 from layout_aware_monodepth.pipeline_utils import create_tracking_exp
@@ -249,7 +249,7 @@ def run():
 
             experiment.log_metric(
                 "epoch/benchmark_loss",
-                benchmark_step_res["loss"].item(),
+                benchmark_step_res["loss"],
                 step=epoch,
             )
 

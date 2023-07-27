@@ -18,7 +18,7 @@ def attach_colorbar(ax, img, vmin=0, vmax=1):
 
 
 def plot_samples_and_preds(
-    batch: dict, preds, with_colorbar=False, with_depth_diff=False, max_depth=1
+    batch: dict, preds, with_colorbar=False, with_depth_diff=False, max_depth=1.0
 ):
     batch_size = len(batch["image"])
     fig, axs = plt.subplots(
@@ -65,6 +65,6 @@ def plot_samples_and_preds(
             ax_2.set_title("Predicted Depth", fontsize=20)
             if with_depth_diff:
                 ax_3.set_title("Depth Difference", fontsize=20)
+    fig.subplots_adjust(wspace=0.05, hspace=0.05)
     plt.tight_layout()
-    fig.subplots_adjust(wspace=0.05, hspace=0.0)
     return fig
