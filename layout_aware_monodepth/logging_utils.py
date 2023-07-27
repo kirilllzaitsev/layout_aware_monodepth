@@ -29,6 +29,14 @@ def log_image_comet(step, batch_size, experiment, prefix, k, v):
         )
 
 
+def log_metric(exp, metrics, step, prefix=None):
+    for k, v in metrics.items():
+        if prefix is not None:
+            k = f"{prefix}/{k}"
+
+        exp.log_metric(k, v, step=step)
+
+
 def optional_normalize_img(x, scaler=255.0):
     if np.max(x) > 1:
         x = x / scaler

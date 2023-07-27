@@ -20,6 +20,7 @@ from layout_aware_monodepth.postprocessing import (
     compute_eval_mask,
     postproc_eval_depths,
 )
+from layout_aware_monodepth.logging_utils import log_metric
 from layout_aware_monodepth.vis_utils import plot_samples_and_preds
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -199,27 +200,22 @@ def run():
             loss = train_step_res["loss"]
             train_running_losses.append(loss)
             train_batch_bar.update(1)
-            train_batch_bar.set_postfix(
-                **{
-                    f"train_{k}": v
-                    for k, v in train_step_res.items()
-                    if k not in ["pred"]
-                }
-            )
+            train_metrics = {
+                f"train_{k}": v for k, v in train_step_res.items() if k not in ["pred"]
+            }
+
+            train_batch_bar.set_postfix(**train_metrics)
             global_step += 1
-            experiment.log_metric(
-                "step/train_loss",
-                loss,
-                step=global_step,
-            )
+            log_metric(experiment, train_metrics, global_step, prefix="step")
 
         for val_batch in val_loader:
             val_step_res = trainer.test_step(model, val_batch, criterion)
             val_running_losses.append(val_step_res["loss"])
             val_batch_bar.update(1)
-            val_batch_bar.set_postfix(
-                **{f"val_{k}": v for k, v in val_step_res.items() if k not in ["pred"]}
-            )
+            val_metrics = {
+                f"val_{k}": v for k, v in val_step_res.items() if k not in ["pred"]
+            }
+            val_batch_bar.set_postfix(**val_metrics)
 
         avg_train_loss = sum(train_running_losses) / len(train_running_losses)
         avg_val_loss = sum(val_running_losses) / len(val_running_losses)
@@ -245,13 +241,13 @@ def run():
 
         if (epoch - 1) % cfg.vis_freq_epochs == 0 or epoch == cfg.num_epochs - 1:
             benchmark_step_res = trainer.test_step(model, benchmark_batch, criterion)
+            benchmark_metrics = {
+                f"benchmark_{k}": v
+                for k, v in benchmark_step_res.items()
+                if k not in ["pred"]
+            }
+            log_metric(experiment, benchmark_metrics, epoch, prefix="epoch")
             out = benchmark_step_res["pred"].detach().cpu().permute(0, 2, 3, 1)
-
-            experiment.log_metric(
-                "epoch/benchmark_loss",
-                benchmark_step_res["loss"],
-                step=epoch,
-            )
 
             name = "preds/depth"
             for idx in range(len(out)):
@@ -287,9 +283,10 @@ def run():
         test_step_res = trainer.test_step(model, test_batch, criterion)
         test_running_losses.append(test_step_res["loss"])
         test_batch_bar.update(1)
-        test_batch_bar.set_postfix(
-            **{f"test_{k}": v for k, v in test_step_res.items() if k not in ["pred"]}
-        )
+        test_metrics = {
+            f"test_{k}": v for k, v in test_step_res.items() if k not in ["pred"]
+        }
+        test_batch_bar.set_postfix(**test_metrics)
 
     test_batch_bar.close()
     avg_test_loss = sum(test_running_losses) / len(test_running_losses)
