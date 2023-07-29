@@ -188,6 +188,10 @@ def run():
         train_batch_bar = tqdm(total=len(train_loader), leave=True)
         val_batch_bar = tqdm(total=len(val_loader), leave=True)
 
+        train_metrics_avg = RunningAverageDict()
+        val_metrics_avg = RunningAverageDict()
+        benchmark_metrics_avg = RunningAverageDict()
+
         epoch_bar.set_description(f"Epoch {epoch}")
 
         train_running_losses = []
@@ -207,45 +211,42 @@ def run():
             train_batch_bar.set_postfix(**train_metrics)
             global_step += 1
             log_metric(experiment, train_metrics, global_step, prefix="step")
+            train_metrics_avg.update(train_metrics)
 
         for val_batch in val_loader:
-            val_step_res = trainer.test_step(model, val_batch, criterion)
+            val_step_res = trainer.eval_step(model, val_batch, criterion)
             val_running_losses.append(val_step_res["loss"])
             val_batch_bar.update(1)
             val_metrics = {
                 f"val_{k}": v for k, v in val_step_res.items() if k not in ["pred"]
             }
             val_batch_bar.set_postfix(**val_metrics)
-
-        avg_train_loss = sum(train_running_losses) / len(train_running_losses)
-        avg_val_loss = sum(val_running_losses) / len(val_running_losses)
+            val_metrics_avg.update(val_metrics)
 
         epoch_bar.update(1)
-        epoch_bar.set_postfix(
-            **{
-                "avg_train_loss": avg_train_loss,
-                "avg_val_loss": avg_val_loss,
-            }
-        )
+
+        print(f"\nTRAIN metrics:\n{train_metrics_avg}\n")
+        print(f"\nVAL metrics:\n{val_metrics_avg}\n")
 
         experiment.log_metric(
             "epoch/train_loss",
-            avg_train_loss,
+            train_metrics_avg.get_value()["avg_train_loss"],
             step=epoch,
         )
         experiment.log_metric(
             "epoch/val_loss",
-            avg_val_loss,
+            val_metrics_avg.get_value()["avg_val_loss"],
             step=epoch,
         )
 
         if (epoch - 1) % cfg.vis_freq_epochs == 0 or epoch == cfg.num_epochs - 1:
-            benchmark_step_res = trainer.test_step(model, benchmark_batch, criterion)
+            benchmark_step_res = trainer.eval_step(model, benchmark_batch, criterion)
             benchmark_metrics = {
                 f"benchmark_{k}": v
                 for k, v in benchmark_step_res.items()
                 if k not in ["pred"]
             }
+            benchmark_metrics_avg.update(benchmark_metrics)
             log_metric(experiment, benchmark_metrics, epoch, prefix="epoch")
             out = benchmark_step_res["pred"].detach().cpu().permute(0, 2, 3, 1)
 
