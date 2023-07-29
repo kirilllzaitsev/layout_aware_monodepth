@@ -32,16 +32,13 @@ def rotate_image(image, angle, flag=Image.BILINEAR):
 def resize_inputs(*args, target_shape):
     def _resize(x):
         x = cv2.resize(
-            x,  # original image
+            x,
             target_shape,
-            #    (0,0), # set fx and fy, not the final size
-            #    fx=0.5,
-            #    fy=0.5,
             interpolation=cv2.INTER_NEAREST,
         )
         return x
 
-    return [_resize(x) for x in args]
+    return [_resize(x) for x in args] if len(args) > 1 else _resize(args[0])
 
 
 def random_crop(img, depth, height, width):
