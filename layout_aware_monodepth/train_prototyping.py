@@ -11,16 +11,20 @@ from tqdm import tqdm
 
 from layout_aware_monodepth.cfg import cfg
 from layout_aware_monodepth.data.monodepth import KITTIDataset, NYUv2Dataset
-from layout_aware_monodepth.data.transforms import ToTensor, train_transform
+from layout_aware_monodepth.data.transforms import (
+    ToTensor,
+    test_transform,
+    train_transform,
+)
+from layout_aware_monodepth.logging_utils import log_metric, log_params_to_exp
 from layout_aware_monodepth.losses import MSELoss, SILogLoss
-from layout_aware_monodepth.metrics import calc_metrics
+from layout_aware_monodepth.metrics import RunningAverageDict, calc_metrics
 from layout_aware_monodepth.model import DepthModel
 from layout_aware_monodepth.pipeline_utils import create_tracking_exp
 from layout_aware_monodepth.postprocessing import (
     compute_eval_mask,
     postproc_eval_depths,
 )
-from layout_aware_monodepth.logging_utils import log_metric
 from layout_aware_monodepth.vis_utils import plot_samples_and_preds
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -48,7 +52,7 @@ class Trainer:
         optimizer.step()
         return {"loss": loss.item(), "pred": out}
 
-    def test_step(self, model, batch, criterion):
+    def eval_step(self, model, batch, criterion):
         model.eval()
         result = {}
         with torch.no_grad():
@@ -82,7 +86,7 @@ def run():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ds", type=str, default="nyu", choices=["kitti", "nyu"])
     parser.add_argument("--do_overfit", action="store_true")
-    parser.add_argument("--do_overlay_lines", action="store_true")
+    parser.add_argument("--line_op", choices=["overlay", "concat"], default=None)
     parser.add_argument("--use_single_sample", action="store_true")
     parser.add_argument("--exp_disabled", action="store_true")
     parser.add_argument("--crop_type", choices=["garg", "eigen"], default=None)
@@ -94,26 +98,22 @@ def run():
     )
     parser.add_argument("--max_depth_eval", type=float, default=10)
 
-    parser.add_argument("--exp_tags", nargs="+", default=[])
+    parser.add_argument("--exp_tags", nargs="*", default=[])
     args = parser.parse_args()
 
     if args.ds == "kitti":
-        if args.do_overfit:
-            config_path = "../configs/kitti_ds_overfit.yaml"
-        else:
-            config_path = "../configs/kitti_ds.yaml"
+        config_path = "../configs/kitti_ds.yaml"
     else:
-        if args.do_overfit:
-            config_path = "../configs/nyu_ds_overfit.yaml"
-        else:
-            config_path = "../configs/nyu_ds.yaml"
+        config_path = "../configs/nyu_ds.yaml"
 
     cfg.exp_disabled = args.exp_disabled
     cfg.use_single_sample = args.use_single_sample
     cfg.do_overfit = args.do_overfit
-    cfg.do_overlay_lines = args.do_overlay_lines
+    cfg.line_op = args.line_op
 
     ds_args = argparse.Namespace(**yaml.load(open(config_path), Loader=yaml.FullLoader))
+    for k, v in vars(args).items():
+        setattr(ds_args, k, v)
 
     if args.ds == "kitti":
         ds_cls = KITTIDataset
@@ -124,7 +124,6 @@ def run():
         ds_args,
         ds_args.mode,
         transform=train_transform,
-        do_overlay_lines=cfg.do_overlay_lines,
     )
 
     if cfg.use_single_sample and cfg.do_overfit:
@@ -137,16 +136,24 @@ def run():
         if cfg.do_overfit:
             ds_subset = torch.utils.data.Subset(ds, range(0, 280))
         else:
-            ds_subset = ds
+            ds_subset = torch.utils.data.Subset(ds, range(0, 11_000))
         train_ds_len = int(len(ds_subset) * 0.8)
         val_ds_len = int(len(ds_subset) * 0.1)
         train_subset = torch.utils.data.Subset(ds_subset, range(0, train_ds_len))
         val_subset = torch.utils.data.Subset(
             ds_subset, range(train_ds_len, train_ds_len + val_ds_len)
         )
-        test_subset = torch.utils.data.Subset(
-            ds_subset, range(train_ds_len + val_ds_len, len(ds_subset))
-        )
+        if cfg.do_overfit:
+            test_subset = torch.utils.data.Subset(
+                ds_subset, range(train_ds_len + val_ds_len, len(ds_subset))
+            )
+        else:
+            test_subset = ds_cls(
+                ds_args,
+                "test",
+                transform=test_transform,
+                line_op=cfg.line_op,
+            )
 
     train_loader = DataLoader(train_subset, batch_size=ds_args.batch_size, shuffle=True)
     val_loader = DataLoader(val_subset, batch_size=ds_args.batch_size)
@@ -160,7 +167,7 @@ def run():
         ]
         benchmark_batch = ds.load_benchmark_batch(benchmark_paths)
 
-    model = DepthModel()
+    model = DepthModel(in_channels=3 if args.line_op is None else 4)
     model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -173,7 +180,7 @@ def run():
         [
             args.ds,
             "overfit" if cfg.do_overfit else "full",
-            "overlay" if cfg.do_overlay_lines else "no_overlay",
+            f"{cfg.line_op}_lines",
         ]
         + args.exp_tags
     )
@@ -290,29 +297,34 @@ def run():
                 step=epoch,
             )
 
-        if epoch in [50] and cfg.do_save_model:
-            torch.save(model.state_dict(), f"model_{epoch}.pth")
+            print(f"\nBENCHMARK metrics:\n{benchmark_metrics_avg}\n")
+
+            if cfg.do_save_model:
+                torch.save(model.state_dict(), f"/tmp/model_{epoch}.pth")
 
         train_batch_bar.close()
         val_batch_bar.close()
 
     test_batch_bar = tqdm(total=len(test_loader), leave=True)
+    test_metrics_avg = RunningAverageDict()
     test_running_losses = []
     for test_batch in test_loader:
-        test_step_res = trainer.test_step(model, test_batch, criterion)
+        test_step_res = trainer.eval_step(model, test_batch, criterion)
         test_running_losses.append(test_step_res["loss"])
         test_batch_bar.update(1)
         test_metrics = {
             f"test_{k}": v for k, v in test_step_res.items() if k not in ["pred"]
         }
+        test_metrics_avg.update(test_metrics)
         test_batch_bar.set_postfix(**test_metrics)
 
     test_batch_bar.close()
-    avg_test_loss = sum(test_running_losses) / len(test_running_losses)
+
+    print(f"\nTEST metrics:\n{test_metrics_avg}\n")
 
     experiment.log_metric(
         "epoch/test_loss",
-        avg_test_loss,
+        test_metrics_avg.get_value()["avg_test_loss"],
         step=epoch,
     )
 
