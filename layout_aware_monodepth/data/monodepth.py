@@ -194,18 +194,17 @@ class KITTIDataset(MonodepthDataset):
             json_data = json.load(json_file)
             if self.split == "eigen":
                 self.filenames = json_data["eigen"][self.mode]
-                self.args.data_path = self.args.data_path.replace("/kitti-depth", "")
             else:
                 self.filenames = json_data[self.mode]
 
     def load_img_and_depth(self, paths_map):
         if self.split == "eigen":
             image_path = os.path.join(
-                self.args.data_path, "kitti_raw_data", paths_map["rgb"]
+                self.args.data_path.replace("/kitti-depth", ""), "kitti_raw_data", paths_map["rgb"]
             )
             depth_path = os.path.join(
                 self.args.data_path,
-                f"kitti_depth_completion/train_val_split/ground_truth/{self.mode}",
+                f"kitti-depth/data_depth_annotated/{self.mode}",
                 paths_map["gt"],
             )
         elif "data_" in paths_map["rgb"]:
