@@ -178,6 +178,24 @@ def run():
         + args.exp_tags
     )
 
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    log_params_to_exp(
+        experiment,
+        cfg.params(),
+        "cfg",
+    )
+    log_params_to_exp(
+        experiment,
+        vars(ds_args),
+        "ds_args",
+    )
+    log_params_to_exp(
+        experiment,
+        vars(args),
+        "args",
+    )
+    experiment.log_parameters("model/num_params", num_params)
+
     global_step = 0
 
     trainer = Trainer(
