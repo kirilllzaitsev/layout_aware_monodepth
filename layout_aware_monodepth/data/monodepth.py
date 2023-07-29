@@ -36,7 +36,7 @@ class MonodepthDataset(Dataset):
         self,
         args,
         mode,
-        split,
+        split=None,
         transform=None,
         do_augment=False,
     ):
@@ -204,7 +204,7 @@ class KITTIDataset(MonodepthDataset):
             )
             depth_path = os.path.join(
                 self.args.data_path,
-                f"kitti-depth/data_depth_annotated/{self.mode}",
+                f"data_depth_annotated/{self.mode}",
                 paths_map["gt"],
             )
         elif "data_" in paths_map["rgb"]:

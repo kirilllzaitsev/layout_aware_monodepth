@@ -1,3 +1,6 @@
+import os
+
+
 class cfg:
     num_epochs = 10
     vis_freq_epochs = 1
@@ -23,3 +26,5 @@ class cfg:
                 and k not in attrs_to_exclude
             }
         }
+
+    is_cluster = os.path.exists("/cluster")

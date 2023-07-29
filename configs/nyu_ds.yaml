@@ -1,10 +1,11 @@
 ds_name: nyu
 batch_size: 8
 mode: train
+split: eigen
 
-data_path: /mnt/wext/msc_studies/monodepth_project/data/nyuv2/nyudepthv2
-
-filenames_file: /mnt/wext/cv_data/nyuv2/nyudepthv2/nlspn_splits/nyu.json
+data_path: /mnt/wext/msc_studies/monodepth_project/data/nyuv2-depth
+data_path_cluster: /cluster/scratch/kzaitse/nyu-depth
+filenames_file: ../data/data_splits/nyu.json
 
 input_height: 480
 input_width: 640
