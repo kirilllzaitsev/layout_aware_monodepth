@@ -45,3 +45,7 @@ def optional_normalize_img(x, scaler=255.0):
 
 def rescale_img_to_zero_one_range(x):
     return x / np.max(x)
+
+
+def log_params_to_exp(experiment, params: dict, prefix: str):
+    experiment.log_parameters({f"{prefix}/{k}": v for k, v in params.items()})

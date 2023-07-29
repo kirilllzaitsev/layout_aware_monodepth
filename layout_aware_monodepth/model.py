@@ -12,6 +12,7 @@ class DepthModel(nn.Module):
         encoder_weights="imagenet",
         decoder_activation="sigmoid",
         decoder_first_channel=256,
+        in_channels=3,
     ):
         super().__init__()
 
@@ -22,7 +23,7 @@ class DepthModel(nn.Module):
         model = smp.Unet(
             encoder_name=encoder_name,
             encoder_weights=encoder_weights,
-            in_channels=3,
+            in_channels=in_channels,
             classes=1,
             activation=decoder_activation,
             encoder_depth=len(decoder_channels),
