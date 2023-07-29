@@ -123,6 +123,7 @@ def run():
     ds = ds_cls(
         ds_args,
         ds_args.mode,
+        ds_args.split,
         transform=train_transform,
     )
 

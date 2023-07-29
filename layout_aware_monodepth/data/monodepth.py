@@ -33,18 +33,23 @@ class MonodepthDataset(Dataset):
     target_shape = None
 
     def __init__(
-        self, args, mode, transform=None, do_augment=False, do_overlay_lines=False
+        self,
+        args,
+        mode,
+        split,
+        transform=None,
+        do_augment=False,
     ):
         self.args = args
 
         self.mode = mode
+        self.split = split
         self.transform = transform
         self.do_augment = do_augment
-        self.do_overlay_lines = do_overlay_lines
         self.to_tensor = ToTensor
         self.filenames = []
 
-        if self.do_overlay_lines:
+        if self.args.line_op is not None:
             from layout_aware_monodepth.data.tmp import load_deeplsd
 
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -59,11 +64,17 @@ class MonodepthDataset(Dataset):
             sample = self.prep_train_sample(image, depth_gt, do_augment=self.do_augment)
 
         else:
-            image = self.load_rgb(idx)
-            sample = self.prep_test_sample(image)
+            # image = self.load_rgb(idx)
+            # sample = self.prep_test_sample(image)
 
-        if self.do_overlay_lines:
+            image, depth_gt = self.load_img_and_depth(self.filenames[idx])
+
+            sample = self.prep_train_sample(image, depth_gt, do_augment=False)
+
+        if self.args.line_op == "overlay":
             sample["image"] = self.overlay_lines(sample["image"])
+        elif self.args.line_op == "concat":
+            sample["image"] = self.concat_lines(sample["image"])
 
         if self.transform:
             sample["image"] = self.transform(sample["image"])
@@ -77,8 +88,10 @@ class MonodepthDataset(Dataset):
             image, depth_gt = self.load_img_and_depth(paths_map)
             sample = self.prep_train_sample(image, depth_gt, do_augment=False)
 
-            if self.do_overlay_lines:
+            if self.args.line_op == "overlay":
                 sample["image"] = self.overlay_lines(sample["image"])
+            elif self.args.line_op == "concat":
+                sample["image"] = self.concat_lines(sample["image"])
             sample["image"] = test_transform(sample["image"])
 
             images.append(sample["image"])
@@ -119,7 +132,7 @@ class MonodepthDataset(Dataset):
         sample = {"image": image}
         return sample
 
-    def overlay_lines(self, image):
+    def run_line_detector(self, image):
         # Detect (and optionally refine) the lines
         line_detector_img = image.copy()
         if np.max(image) <= 1.0:
@@ -134,7 +147,12 @@ class MonodepthDataset(Dataset):
         }
         with torch.no_grad():
             out = self.deeplsd(inputs)
-            pred_lines = out["lines"][0].astype(np.int32)
+
+        return out
+
+    def overlay_lines(self, image):
+        out = self.run_line_detector(image)
+        pred_lines = out["lines"][0].astype(np.int32)
 
         line_thickness = 2
         overlay = image.copy()
@@ -144,6 +162,13 @@ class MonodepthDataset(Dataset):
             )
 
         return overlay
+
+    def concat_lines(self, image):
+        out = self.run_line_detector(image)
+        df_norm = out["df_norm"][0].cpu().numpy()
+
+        concat = np.concatenate((image, df_norm[..., np.newaxis]), axis=2)
+        return concat
 
     def load_img_and_depth(self, paths_map):
         raise NotImplementedError
@@ -162,20 +187,19 @@ class KITTIDataset(MonodepthDataset):
     max_depth = 80.0
     target_shape = (640, 192)
 
-    def __init__(self, *args_, use_eigen=False, **kwargs):
-        self.use_eigen = use_eigen
+    def __init__(self, *args_, **kwargs):
         super().__init__(*args_, **kwargs)
 
         with open(self.args.filenames_file) as json_file:
             json_data = json.load(json_file)
-            if use_eigen:
+            if self.split == "eigen":
                 self.filenames = json_data["eigen"][self.mode]
                 self.args.data_path = self.args.data_path.replace("/kitti-depth", "")
             else:
                 self.filenames = json_data[self.mode]
 
     def load_img_and_depth(self, paths_map):
-        if self.use_eigen:
+        if self.split == "eigen":
             image_path = os.path.join(
                 self.args.data_path, "kitti_raw_data", paths_map["rgb"]
             )
