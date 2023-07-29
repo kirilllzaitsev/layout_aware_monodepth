@@ -1,5 +1,9 @@
+ds_name: kitti
 batch_size: 8
 mode: train
+
+split: eigen
+# split: null
 
 data_path: /mnt/wext/msc_studies/monodepth_project/data/kitti/kitti-depth
 filenames_file: /mnt/wext/msc_studies/monodepth_project/data/data_splits/kitti_dc.json
@@ -10,3 +14,5 @@ input_width: 1216
 do_kb_crop: true
 do_random_rotate: false
 degree: 2.5
+
+line_op: concat
