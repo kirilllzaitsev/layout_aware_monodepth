@@ -96,6 +96,39 @@ def calc_metrics(gt, pred, mask=None, min_depth=1e-3):
     )
 
 
+class RunningAverage:
+    def __init__(self):
+        self.avg = 0
+        self.count = 0
+
+    def append(self, value):
+        self.avg = (value + self.count * self.avg) / (self.count + 1)
+        self.count += 1
+
+    def get_value(self):
+        return self.avg
+
+
+class RunningAverageDict:
+    def __init__(self):
+        self._dict = None
+
+    def update(self, new_dict):
+        if self._dict is None:
+            self._dict = dict()
+            for key, value in new_dict.items():
+                self._dict[key] = RunningAverage()
+
+        for key, value in new_dict.items():
+            self._dict[key].append(value)
+
+    def get_value(self):
+        return {f"avg_{key}": round(value.get_value(), 4) for key, value in self._dict.items()}
+
+    def __str__(self):
+        return str(self.get_value())
+
+
 if __name__ == "__main__":
     metric = MultioutputWrapper(TotalMetric(), 4)
     preds = torch.rand(4, 1, 256, 256)
