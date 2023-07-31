@@ -12,6 +12,7 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
+from layout_aware_monodepth.cfg import cfg
 from layout_aware_monodepth.data.transforms import (
     ToTensor,
     interpolate_depth_depth,
@@ -48,6 +49,9 @@ class MonodepthDataset(Dataset):
         self.do_augment = do_augment
         self.to_tensor = ToTensor
         self.filenames = []
+        self.data_dir = (
+            self.args.data_path_cluster if cfg.is_cluster else self.args.data_path
+        )
 
         if self.args.line_op is not None:
             from layout_aware_monodepth.data.tmp import load_deeplsd
@@ -198,25 +202,48 @@ class KITTIDataset(MonodepthDataset):
                 self.filenames = json_data[self.mode]
 
     def load_img_and_depth(self, paths_map):
+        rgb_path = (
+            self.from_local_to_cluster(paths_map["rgb"])
+            if cfg.is_cluster
+            else paths_map["rgb"]
+        )
         if self.split == "eigen":
             image_path = os.path.join(
-                self.args.data_path.replace("/kitti-depth", ""), "kitti_raw_data", paths_map["rgb"]
+                self.data_dir.replace("/kitti-depth", ""),
+                "kitti_raw_data",
+                rgb_path,
             )
             depth_path = os.path.join(
-                self.args.data_path,
+                self.data_dir,
                 f"data_depth_annotated/{self.mode}",
                 paths_map["gt"],
             )
-        elif "data_" in paths_map["rgb"]:
-            image_path = os.path.join(self.args.data_path, paths_map["rgb"])
-            depth_path = os.path.join(self.args.data_path, paths_map["gt"])
-        else:
-            image_path = os.path.join(self.args.data_path, "data_rgb", paths_map["rgb"])
+        elif "data_" in rgb_path:
+            image_path = os.path.join(
+                self.data_dir, rgb_path
+            )
             depth_path = os.path.join(
-                self.args.data_path, "data_depth_annotated", paths_map["gt"]
+                self.data_dir, self.from_local_to_cluster(paths_map["gt"])
+            )
+        else:
+            if cfg.is_cluster:
+                image_path = os.path.join(
+                    self.data_dir,
+                    "data_rgb",
+                    rgb_path,
+                )
+            else:
+                image_path = os.path.join(self.data_dir, "data_rgb", rgb_path)
+            depth_path = os.path.join(
+                self.data_dir, "data_depth_annotated", paths_map["gt"]
             )
 
         return self.load_img_and_depth_from_path(image_path, depth_path)
+
+    def from_local_to_cluster(self, local):
+        local = local[local.find("/") + 1 :]
+        day = local[:10]
+        return day + "/" + local
 
     def load_img_and_depth_from_path(self, image_path, depth_path):
         image = self.load_rgb(image_path)
@@ -245,7 +272,7 @@ class NYUv2Dataset(MonodepthDataset):
             self.filenames = json_data[self.mode]
 
     def load_img_and_depth(self, paths_map):
-        path_file = os.path.join(self.args.data_path, paths_map["filename"])
+        path_file = os.path.join(self.data_dir, paths_map["filename"])
 
         return self.load_img_and_depth_from_path(path_file)
 
@@ -266,7 +293,7 @@ class NYUv2Dataset(MonodepthDataset):
         return depth_gt
 
     def load_rgb(self, idx):
-        path_file = os.path.join(self.args.data_path, self.filenames[idx]["filename"])
+        path_file = os.path.join(self.data_dir, self.filenames[idx]["filename"])
 
         f = h5py.File(path_file, "r")
         image = self._load_rgb(f)
