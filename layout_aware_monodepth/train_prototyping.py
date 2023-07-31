@@ -80,26 +80,8 @@ class Trainer:
             return {**result, **metrics}
 
 
-def run():
+def run(args):
     pl.seed_everything(1234)
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--ds", type=str, default="nyu", choices=["kitti", "nyu"])
-    parser.add_argument("--do_overfit", action="store_true")
-    parser.add_argument("--line_op", choices=["overlay", "concat"], default=None)
-    parser.add_argument("--use_single_sample", action="store_true")
-    parser.add_argument("--exp_disabled", action="store_true")
-    parser.add_argument("--crop_type", choices=["garg", "eigen"], default=None)
-
-    parser.add_argument(
-        "--min_depth_eval",
-        type=float,
-        default=1e-3,
-    )
-    parser.add_argument("--max_depth_eval", type=float, default=10)
-
-    parser.add_argument("--exp_tags", nargs="*", default=[])
-    args = parser.parse_args()
 
     if args.ds == "kitti":
         config_path = "../configs/kitti_ds.yaml"
@@ -110,6 +92,7 @@ def run():
     cfg.use_single_sample = args.use_single_sample
     cfg.do_overfit = args.do_overfit
     cfg.line_op = args.line_op
+    cfg.num_epochs = args.num_epochs
 
     ds_args = argparse.Namespace(**yaml.load(open(config_path), Loader=yaml.FullLoader))
     for k, v in vars(args).items():
@@ -330,7 +313,30 @@ def run():
     )
 
     experiment.add_tags(["finished"])
+    experiment.end()
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ds", type=str, default="nyu", choices=["kitti", "nyu"])
+    parser.add_argument("--do_overfit", action="store_true")
+    parser.add_argument("--line_op", choices=["overlay", "concat"], default=None)
+    parser.add_argument("--use_single_sample", action="store_true")
+    parser.add_argument("--exp_disabled", action="store_true")
+    parser.add_argument("--num_epochs", type=int, default=20)
+    parser.add_argument("--crop_type", choices=["garg", "eigen"], default=None)
+
+    parser.add_argument(
+        "--min_depth_eval",
+        type=float,
+        default=1e-3,
+    )
+    parser.add_argument("--max_depth_eval", type=float, default=10)
+
+    parser.add_argument("--exp_tags", nargs="*", default=[])
+    args = parser.parse_args()
+    run(args)
 
 
 if __name__ == "__main__":
-    run()
+    main()
