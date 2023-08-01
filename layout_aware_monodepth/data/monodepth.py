@@ -62,23 +62,9 @@ class MonodepthDataset(Dataset):
 
     @lru_cache(maxsize=128)
     def __getitem__(self, idx):
-        if self.mode == "train":
-            image, depth_gt = self.load_img_and_depth(self.filenames[idx])
+        image, depth_gt = self.load_img_and_depth(self.filenames[idx])
 
-            sample = self.prep_train_sample(image, depth_gt, do_augment=self.do_augment)
-
-        else:
-            # image = self.load_rgb(idx)
-            # sample = self.prep_test_sample(image)
-
-            image, depth_gt = self.load_img_and_depth(self.filenames[idx])
-
-            sample = self.prep_train_sample(image, depth_gt, do_augment=False)
-
-        if self.args.line_op == "overlay":
-            sample["image"] = self.overlay_lines(sample["image"])
-        elif self.args.line_op == "concat":
-            sample["image"] = self.concat_lines(sample["image"])
+        sample = self.prep_train_sample(image, depth_gt, do_augment=self.do_augment)
 
         if self.transform:
             sample["image"] = self.transform(sample["image"])
@@ -92,10 +78,6 @@ class MonodepthDataset(Dataset):
             image, depth_gt = self.load_img_and_depth(paths_map)
             sample = self.prep_train_sample(image, depth_gt, do_augment=False)
 
-            if self.args.line_op == "overlay":
-                sample["image"] = self.overlay_lines(sample["image"])
-            elif self.args.line_op == "concat":
-                sample["image"] = self.concat_lines(sample["image"])
             sample["image"] = test_transform(sample["image"])
 
             images.append(sample["image"])
@@ -121,6 +103,11 @@ class MonodepthDataset(Dataset):
         depth_gt = self.convert_depth_to_meters(depth_gt)
         depth_gt = np.clip(depth_gt, 0, self.max_depth)
         depth_gt /= self.max_depth
+
+        if self.args.line_op == "overlay":
+            image = self.overlay_lines(image)
+        elif self.args.line_op in ["concat", "concat_binary"]:
+            image = self.concat_lines(image)
 
         sample = {
             "image": image,
@@ -169,9 +156,21 @@ class MonodepthDataset(Dataset):
 
     def concat_lines(self, image):
         out = self.run_line_detector(image)
-        df_norm = out["df_norm"][0].cpu().numpy()
 
-        concat = np.concatenate((image, df_norm[..., np.newaxis]), axis=2)
+        if self.args.line_op == "concat":
+            df_norm = out["df_norm"][0].cpu().numpy()
+
+            concat = (df_norm - np.min(df_norm)) / (np.max(df_norm) - np.min(df_norm))
+        elif self.args.line_op == "concat_binary":
+            lines = out["lines"][0].astype(np.int32)
+            concat = np.zeros((image.shape[0], image.shape[1], 1))
+            for line in lines:
+                concat = cv2.line(concat, tuple(line[0]), tuple(line[1]), (1, 1, 1), 2)
+        else:
+            raise NotImplementedError
+
+        concat = concat.astype(np.float32)
+        concat = np.concatenate((image, concat), axis=2)
         return concat
 
     def load_img_and_depth(self, paths_map):
@@ -219,9 +218,7 @@ class KITTIDataset(MonodepthDataset):
                 paths_map["gt"],
             )
         elif "data_" in rgb_path:
-            image_path = os.path.join(
-                self.data_dir, rgb_path
-            )
+            image_path = os.path.join(self.data_dir, rgb_path)
             depth_path = os.path.join(
                 self.data_dir, self.from_local_to_cluster(paths_map["gt"])
             )
