@@ -165,8 +165,17 @@ class MonodepthDataset(Dataset):
         elif self.args.line_op == "concat_binary":
             lines = out["lines"][0].astype(np.int32)
             concat = np.zeros((image.shape[0], image.shape[1], 1))
-            for line in lines:
-                concat = cv2.line(concat, tuple(line[0]), tuple(line[1]), (1, 1, 1), 2)
+            line_lengths = np.sqrt(
+                (lines[:, 0, 0] - lines[:, 1, 0]) ** 2
+                + (lines[:, 0, 1] - lines[:, 1, 1]) ** 2
+            )
+            line_mean = np.mean(line_lengths)
+            for idx, line in enumerate(lines):
+                length = line_lengths[idx]
+                if length > line_mean / 4:
+                    concat = cv2.line(
+                        concat, tuple(line[0]), tuple(line[1]), (1, 1, 1), 2
+                    )
         else:
             raise NotImplementedError
 
