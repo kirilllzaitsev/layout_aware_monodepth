@@ -108,6 +108,7 @@ def run(args):
         ds_args.mode,
         ds_args.split,
         transform=train_transform,
+        do_augment=False,
     )
 
     if cfg.use_single_sample and cfg.do_overfit:
@@ -137,6 +138,7 @@ def run(args):
                 "test",
                 ds_args.split,
                 transform=test_transform,
+                do_augment=False,
             )
 
     train_loader = DataLoader(train_subset, batch_size=ds_args.batch_size, shuffle=True)
@@ -151,10 +153,10 @@ def run(args):
         ]
         benchmark_batch = ds.load_benchmark_batch(benchmark_paths)
 
-    model = DepthModel(in_channels=3 if args.line_op is None else 4)
+    model = DepthModel(in_channels=4 if args.line_op in ['concat', 'concat_binary'] else 3)
     model.to(device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=5e-4)
     criterion = SILogLoss()
 
     epoch_bar = tqdm(total=cfg.num_epochs, leave=False)
@@ -308,7 +310,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ds", type=str, default="nyu", choices=["kitti", "nyu"])
     parser.add_argument("--do_overfit", action="store_true")
-    parser.add_argument("--line_op", choices=["overlay", "concat"], default=None)
+    parser.add_argument("--line_op", choices=["overlay", "concat", "concat_binary"], default=None)
     parser.add_argument("--use_single_sample", action="store_true")
     parser.add_argument("--exp_disabled", action="store_true")
     parser.add_argument("--num_epochs", type=int, default=20)

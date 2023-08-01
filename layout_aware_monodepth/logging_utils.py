@@ -29,7 +29,7 @@ def log_image_comet(step, batch_size, experiment, prefix, k, v):
         )
 
 
-def log_metric(exp, metrics, step, prefix=None):
+def log_metric(exp, metrics: dict, step: int, prefix: str = None):
     for k, v in metrics.items():
         if prefix is not None:
             k = f"{prefix}/{k}"
