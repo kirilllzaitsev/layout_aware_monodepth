@@ -135,8 +135,8 @@ def run(args):
             test_subset = ds_cls(
                 ds_args,
                 "test",
+                ds_args.split,
                 transform=test_transform,
-                line_op=cfg.line_op,
             )
 
     train_loader = DataLoader(train_subset, batch_size=ds_args.batch_size, shuffle=True)
