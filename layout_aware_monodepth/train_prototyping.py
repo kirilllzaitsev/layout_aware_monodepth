@@ -237,16 +237,9 @@ def run(args):
         print(f"\nTRAIN metrics:\n{train_metrics_avg}\n")
         print(f"\nVAL metrics:\n{val_metrics_avg}\n")
 
-        experiment.log_metric(
-            "epoch/train_loss",
-            train_metrics_avg.get_value()["avg_train_loss"],
-            step=epoch,
-        )
-        experiment.log_metric(
-            "epoch/val_loss",
-            val_metrics_avg.get_value()["avg_val_loss"],
-            step=epoch,
-        )
+        log_metric(experiment, train_metrics_avg.get_value(), epoch, prefix="epoch")
+        log_metric(experiment, val_metrics_avg.get_value(), epoch, prefix="epoch")
+
 
         if (epoch - 1) % cfg.vis_freq_epochs == 0 or epoch == cfg.num_epochs - 1:
             benchmark_step_res = trainer.eval_step(model, benchmark_batch, criterion)
@@ -289,28 +282,23 @@ def run(args):
         train_batch_bar.close()
         val_batch_bar.close()
 
-    test_batch_bar = tqdm(total=len(test_loader), leave=True)
-    test_metrics_avg = RunningAverageDict()
-    test_running_losses = []
-    for test_batch in test_loader:
-        test_step_res = trainer.eval_step(model, test_batch, criterion)
-        test_running_losses.append(test_step_res["loss"])
-        test_batch_bar.update(1)
-        test_metrics = {
-            f"test_{k}": v for k, v in test_step_res.items() if k not in ["pred"]
-        }
-        test_metrics_avg.update(test_metrics)
-        test_batch_bar.set_postfix(**test_metrics)
+        test_batch_bar = tqdm(total=len(test_loader), leave=True)
+        test_metrics_avg = RunningAverageDict()
+        test_running_losses = []
+        for test_batch in test_loader:
+            test_step_res = trainer.eval_step(model, test_batch, criterion)
+            test_running_losses.append(test_step_res["loss"])
+            test_batch_bar.update(1)
+            test_metrics = {
+                f"test_{k}": v for k, v in test_step_res.items() if k not in ["pred"]
+            }
+            test_metrics_avg.update(test_metrics)
+            test_batch_bar.set_postfix(**test_metrics)
 
-    test_batch_bar.close()
+        test_batch_bar.close()
 
-    print(f"\nTEST metrics:\n{test_metrics_avg}\n")
-
-    experiment.log_metric(
-        "epoch/test_loss",
-        test_metrics_avg.get_value()["avg_test_loss"],
-        step=epoch,
-    )
+        print(f"\nTEST metrics:\n{test_metrics_avg}\n")
+        log_metric(experiment, test_metrics_avg.get_value(), epoch, prefix="epoch")
 
     experiment.add_tags(["finished"])
     experiment.end()
