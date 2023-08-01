@@ -21,13 +21,18 @@ def plot_samples_and_preds(
     batch: dict, preds, with_colorbar=False, with_depth_diff=False, max_depth=1.0
 ):
     batch_size = len(batch["image"])
+    with_lines_concat = batch["image"].shape[1] == 4
+    ncols = 3 + with_depth_diff + with_lines_concat
     fig, axs = plt.subplots(
         batch_size,
-        3 + with_depth_diff,
-        figsize=(max(batch_size * 5, 10), (batch_size + with_depth_diff) * 5),
+        ncols,
+        figsize=(max(batch_size * 5, 10), ncols * 5),
     )
     for i in range(batch_size):
-        img = batch["image"][i].permute(1, 2, 0)
+        if with_lines_concat:
+            img = batch["image"][i][:3].permute(1, 2, 0)
+        else:
+            img = batch["image"][i].permute(1, 2, 0)
         in_depth = batch["depth"][i]
         d = preds[i]
 
@@ -37,34 +42,49 @@ def plot_samples_and_preds(
             ax_2 = axs[2]
             if with_depth_diff:
                 ax_3 = axs[3]
+            if with_lines_concat:
+                ax_4 = axs[4]
         else:
             ax_0 = axs[i, 0]
             ax_1 = axs[i, 1]
             ax_2 = axs[i, 2]
             if with_depth_diff:
                 ax_3 = axs[i, 3]
+            if with_lines_concat:
+                ax_4 = axs[i, 4]
+
         ax_0.imshow(img)
         ax_1.imshow(in_depth * max_depth)
         ax_2.imshow(d * max_depth)
         axs_row = [ax_0, ax_1, ax_2]
+
         if with_colorbar:
-            attach_colorbar(ax_1, ax_1.images[0], vmax=1 * max_depth)
-            attach_colorbar(ax_2, ax_2.images[0], vmax=1 * max_depth)
+            for ax in [ax_1, ax_2]:
+                attach_colorbar(ax, ax.images[0], vmax=1 * max_depth)
+
         if with_depth_diff:
             axs_row.append(ax_3)
-        if with_depth_diff:
             diff = (in_depth - d) * max_depth
             ax_3.imshow(diff, cmap="magma")
             attach_colorbar(ax_3, ax_3.images[0], vmin=None, vmax=None)
+
+        if with_lines_concat:
+            axs_row.append(ax_4)
+            ax_4.imshow(batch["image"][i][3])
+
         for ax in axs_row:
             ax.axis("off")
             ax.set_aspect("equal")
+
         if i == 0:
-            ax_0.set_title("Image", fontsize=20)
-            ax_1.set_title("Input Depth", fontsize=20)
-            ax_2.set_title("Predicted Depth", fontsize=20)
+            fontsize = 16
+            ax_0.set_title("Image", fontsize=fontsize)
+            ax_1.set_title("Input Depth", fontsize=fontsize)
+            ax_2.set_title("Predicted Depth", fontsize=fontsize)
             if with_depth_diff:
-                ax_3.set_title("Depth Difference", fontsize=20)
+                ax_3.set_title("Depth Difference", fontsize=fontsize)
+            if with_lines_concat:
+                ax_4.set_title("Line channel", fontsize=fontsize)
     fig.subplots_adjust(wspace=0.05, hspace=0.05)
     plt.tight_layout()
     return fig
