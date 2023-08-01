@@ -161,6 +161,7 @@ class MonodepthDataset(Dataset):
             df_norm = out["df_norm"][0].cpu().numpy()
 
             concat = (df_norm - np.min(df_norm)) / (np.max(df_norm) - np.min(df_norm))
+            concat = np.expand_dims(concat, axis=2)
         elif self.args.line_op == "concat_binary":
             lines = out["lines"][0].astype(np.int32)
             concat = np.zeros((image.shape[0], image.shape[1], 1))
