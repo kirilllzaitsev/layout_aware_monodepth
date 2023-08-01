@@ -61,9 +61,12 @@ def calc_metrics(gt, pred, mask=None, min_depth=1e-3):
         mask = gt > min_depth
 
     if isinstance(gt, torch.Tensor):
-        gt = gt[mask].cpu().numpy()
+        gt = gt.cpu().numpy()
     if isinstance(pred, torch.Tensor):
-        pred = pred[mask].detach().cpu().numpy()
+        pred = pred.detach().cpu().numpy()
+    
+    gt = gt[mask]
+    pred = pred[mask]
 
     thresh = np.maximum((gt / (pred + 1e-8)), (pred / (gt + 1e-8)))
     delta1 = (thresh < 1.25).mean()
@@ -123,7 +126,9 @@ class RunningAverageDict:
             self._dict[key].append(value)
 
     def get_value(self):
-        return {f"avg_{key}": round(value.get_value(), 4) for key, value in self._dict.items()}
+        return {
+            f"{key}": round(value.get_value(), 4) for key, value in self._dict.items()
+        }
 
     def __str__(self):
         return str(self.get_value())
