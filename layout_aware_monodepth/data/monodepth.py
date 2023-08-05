@@ -165,23 +165,32 @@ class MonodepthDataset(Dataset):
         elif self.args.line_op == "concat_binary":
             lines = out["lines"][0].astype(np.int32)
             concat = np.zeros((image.shape[0], image.shape[1], 1))
-            line_lengths = np.sqrt(
-                (lines[:, 0, 0] - lines[:, 1, 0]) ** 2
-                + (lines[:, 0, 1] - lines[:, 1, 1]) ** 2
-            )
-            line_mean = np.mean(line_lengths)
-            for idx, line in enumerate(lines):
-                length = line_lengths[idx]
-                if length > line_mean / 4:
-                    concat = cv2.line(
-                        concat, tuple(line[0]), tuple(line[1]), (1, 1, 1), 2
-                    )
+            filtered_lines = self.filter_lines_by_length(lines)
+            for line in filtered_lines:
+                concat = cv2.line(concat, tuple(line[0]), tuple(line[1]), (1, 1, 1), 2)
         else:
             raise NotImplementedError
 
         concat = concat.astype(np.float32)
         concat = np.concatenate((image, concat), axis=2)
         return concat
+
+    def filter_lines_by_length(self, lines, min_length=10, use_min_length=False):
+        line_lengths = np.sqrt(
+            (lines[:, 0, 0] - lines[:, 1, 0]) ** 2
+            + (lines[:, 0, 1] - lines[:, 1, 1]) ** 2
+        )
+        len_mean = np.mean(line_lengths)
+        new_lines = []
+        for idx, line in enumerate(lines):
+            length = line_lengths[idx]
+            if use_min_length:
+                if length > min_length:
+                    new_lines.append(line)
+            else:
+                if length > len_mean / 4:
+                    new_lines.append(line)
+        return np.array(new_lines)
 
     def load_img_and_depth(self, paths_map):
         raise NotImplementedError
