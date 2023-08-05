@@ -278,8 +278,10 @@ def run(args):
 
             print(f"\nBENCHMARK metrics:\n{benchmark_metrics_avg}\n")
 
-            if cfg.do_save_model:
-                torch.save(model.state_dict(), f"/tmp/model_{epoch}.pth")
+        if cfg.do_save_model:
+            save_path = f"/tmp/model_{epoch}.pth"
+            torch.save(model.state_dict(), save_path)
+            experiment.log_model(f"depth_model_{epoch}", save_path, overwrite=False)
 
         train_batch_bar.close()
         val_batch_bar.close()
