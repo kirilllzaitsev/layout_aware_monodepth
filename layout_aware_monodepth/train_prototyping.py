@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 
 import pytorch_lightning as pl
 import torch
@@ -161,6 +162,8 @@ def run(args):
 
     epoch_bar = tqdm(total=cfg.num_epochs, leave=False)
     experiment = create_tracking_exp(cfg)
+    exp_dir = f"{cfg.exp_base_dir}/{experiment.name}"
+    os.makedirs(exp_dir, exist_ok=True)
 
     experiment.add_tags(
         [
@@ -243,7 +246,8 @@ def run(args):
         log_metric(experiment, val_metrics_avg.get_value(), epoch, prefix="epoch")
 
 
-        if (epoch - 1) % cfg.vis_freq_epochs == 0 or epoch == cfg.num_epochs - 1:
+        is_last_epoch = epoch == cfg.num_epochs - 1
+        if (epoch - 1) % cfg.vis_freq_epochs == 0 or is_last_epoch:
             benchmark_step_res = trainer.eval_step(model, benchmark_batch, criterion)
             benchmark_metrics = {
                 f"benchmark_{k}": v
@@ -278,8 +282,8 @@ def run(args):
 
             print(f"\nBENCHMARK metrics:\n{benchmark_metrics_avg}\n")
 
-        if cfg.do_save_model:
-            save_path = f"/tmp/model_{epoch}.pth"
+        if cfg.do_save_model and (epoch - 1) % cfg.save_freq_epochs == 0 or is_last_epoch:
+            save_path = f"{exp_dir}/model_{epoch}.pth"
             torch.save(model.state_dict(), save_path)
             experiment.log_model(f"depth_model_{epoch}", save_path, overwrite=False)
 
