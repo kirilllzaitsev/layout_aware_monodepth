@@ -164,6 +164,9 @@ class MonodepthDataset(Dataset):
             concat = np.expand_dims(concat, axis=2)
         elif self.args.line_op == "concat_binary":
             lines = out["lines"][0].astype(np.int32)
+
+            lines = self.filter_lines_by_vp(lines, out["vp_labels"][0])
+
             concat = np.zeros((image.shape[0], image.shape[1], 1))
             filtered_lines = self.filter_lines_by_length(lines)
             for line in filtered_lines:
@@ -174,6 +177,12 @@ class MonodepthDataset(Dataset):
         concat = concat.astype(np.float32)
         concat = np.concatenate((image, concat), axis=2)
         return concat
+
+    def filter_lines_by_vp(self, lines, vp_labels):
+        vp_labels = np.array(vp_labels)
+        mask = vp_labels == -1
+        lines = lines[mask]
+        return lines
 
     def filter_lines_by_length(self, lines, min_length=10, use_min_length=False):
         line_lengths = np.sqrt(
