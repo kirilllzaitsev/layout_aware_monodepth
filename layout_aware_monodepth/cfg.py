@@ -4,6 +4,7 @@ import os
 class cfg:
     num_epochs = 10
     vis_freq_epochs = 1
+    save_freq_epochs = 2
     exp_disabled = False
     do_save_model = True
     line_op = None
@@ -28,3 +29,4 @@ class cfg:
         }
 
     is_cluster = os.path.exists("/cluster")
+    exp_base_dir = '/cluster/scratch/kzaitse' if is_cluster else '/tmp'

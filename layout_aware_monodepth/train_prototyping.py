@@ -154,7 +154,9 @@ def run(args):
         ]
         benchmark_batch = ds.load_benchmark_batch(benchmark_paths)
 
-    model = DepthModel(in_channels=4 if args.line_op in ['concat', 'concat_binary'] else 3)
+    model = DepthModel(
+        in_channels=4 if args.line_op in ["concat", "concat_binary"] else 3
+    )
     model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=5e-4)
@@ -245,7 +247,6 @@ def run(args):
         log_metric(experiment, train_metrics_avg.get_value(), epoch, prefix="epoch")
         log_metric(experiment, val_metrics_avg.get_value(), epoch, prefix="epoch")
 
-
         is_last_epoch = epoch == cfg.num_epochs - 1
         if (epoch - 1) % cfg.vis_freq_epochs == 0 or is_last_epoch:
             benchmark_step_res = trainer.eval_step(model, benchmark_batch, criterion)
@@ -282,7 +283,11 @@ def run(args):
 
             print(f"\nBENCHMARK metrics:\n{benchmark_metrics_avg}\n")
 
-        if cfg.do_save_model and (epoch - 1) % cfg.save_freq_epochs == 0 or is_last_epoch:
+        if (
+            cfg.do_save_model
+            and (epoch - 1) % cfg.save_freq_epochs == 0
+            or is_last_epoch
+        ):
             save_path = f"{exp_dir}/model_{epoch}.pth"
             torch.save(model.state_dict(), save_path)
             experiment.log_model(f"depth_model_{epoch}", save_path, overwrite=False)
@@ -316,7 +321,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ds", type=str, default="nyu", choices=["kitti", "nyu"])
     parser.add_argument("--do_overfit", action="store_true")
-    parser.add_argument("--line_op", choices=["overlay", "concat", "concat_binary"], default=None)
+    parser.add_argument(
+        "--line_op", choices=["overlay", "concat", "concat_binary"], default=None
+    )
     parser.add_argument("--use_single_sample", action="store_true")
     parser.add_argument("--exp_disabled", action="store_true")
     parser.add_argument("--num_epochs", type=int, default=20)
