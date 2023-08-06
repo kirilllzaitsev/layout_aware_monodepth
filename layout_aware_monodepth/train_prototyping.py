@@ -155,7 +155,8 @@ def run(args):
         benchmark_batch = ds.load_benchmark_batch(benchmark_paths)
 
     model = DepthModel(
-        in_channels=4 if args.line_op in ["concat", "concat_binary"] else 3
+        in_channels=4 if args.line_op in ["concat", "concat_binary"] else 3,
+        use_attn=args.use_attn,
     )
     model.to(device)
 
@@ -324,8 +325,12 @@ def main():
     parser.add_argument(
         "--line_op", choices=["overlay", "concat", "concat_binary"], default=None
     )
+    parser.add_argument(
+        "--line_filter", choices=["length", "vanishing_point", "length,vanishing_point"]
+    )
     parser.add_argument("--use_single_sample", action="store_true")
     parser.add_argument("--exp_disabled", action="store_true")
+    parser.add_argument("--use_attn", action="store_true")
     parser.add_argument("--num_epochs", type=int, default=20)
     parser.add_argument("--crop_type", choices=["garg", "eigen"], default=None)
 

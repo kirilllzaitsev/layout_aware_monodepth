@@ -165,11 +165,13 @@ class MonodepthDataset(Dataset):
         elif self.args.line_op == "concat_binary":
             lines = out["lines"][0].astype(np.int32)
 
-            lines = self.filter_lines_by_vp(lines, out["vp_labels"][0])
+            if "vanishing_point" in self.args.line_filter:
+                lines = self.filter_lines_by_vp(lines, out["vp_labels"][0])
+            if "length" in self.args.line_filter:
+                lines = self.filter_lines_by_length(lines)
 
             concat = np.zeros((image.shape[0], image.shape[1], 1))
-            filtered_lines = self.filter_lines_by_length(lines)
-            for line in filtered_lines:
+            for line in lines:
                 concat = cv2.line(concat, tuple(line[0]), tuple(line[1]), (1, 1, 1), 2)
         else:
             raise NotImplementedError
