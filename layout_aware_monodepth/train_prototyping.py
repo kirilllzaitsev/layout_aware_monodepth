@@ -193,7 +193,7 @@ def run(args):
         vars(args),
         "args",
     )
-    experiment.log_parameters("model/num_params", num_params)
+    experiment.log_parameters({"model/num_params": num_params})
 
     global_step = 0
 
