@@ -14,6 +14,7 @@ class DepthModel(nn.Module):
         decoder_activation="sigmoid",
         decoder_first_channel=256,
         in_channels=3,
+        use_attn=False,
     ):
         super().__init__()
 
@@ -33,11 +34,16 @@ class DepthModel(nn.Module):
 
         self.encoder = model.encoder
 
+        self.use_attn = use_attn
         self.attn_blocks = []
+
         for x_dim in self.encoder.out_channels:
-            self.attn_blocks.append(
-                AttentionBasicBlockB(x_dim, x_dim, stride=1, heads=4, window_size=4)
-            )
+            if use_attn:
+                self.attn_blocks.append(
+                    AttentionBasicBlockB(x_dim, x_dim, stride=1, heads=4, window_size=4)
+                )
+            else:
+                self.attn_blocks.append(nn.Identity())
 
         self.attn_blocks = nn.ModuleList(self.attn_blocks)
 

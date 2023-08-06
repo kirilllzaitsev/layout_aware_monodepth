@@ -25,6 +25,11 @@ def create_tracking_exp(cfg) -> comet_ml.Experiment:
     for code_file in [
         "model.py",
         "train.py",
+        "train_prototyping.py",
+        "metrics.py",
+        "losses.py",
+        "cfg.py",
+        "postprocessing.py",
         "data/monodepth.py",
     ]:
         experiment.log_code(code_file)
