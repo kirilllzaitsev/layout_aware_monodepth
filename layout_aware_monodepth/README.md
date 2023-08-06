@@ -1,5 +1,18 @@
 # Layout-aware monoocular depth estimation
 
+## Installation
+
+### Requirements
+
+- Python >=3.8
+
+### Setup
+
+```bash
+pip install git+https://github.com/kirilllzaitsev/how-do-vits-work.git@transformer
+pip install -r requirements.txt
+```
+
 ## Datasets
 
 Data splits are provided in `data/data_splits` folder.
