@@ -35,17 +35,15 @@ class DepthModel(nn.Module):
         self.encoder = model.encoder
 
         self.use_attn = use_attn
-        self.attn_blocks = []
 
-        for x_dim in self.encoder.out_channels:
-            if use_attn:
+        if use_attn:
+            self.attn_blocks = []
+            for x_dim in self.encoder.out_channels:
                 self.attn_blocks.append(
                     AttentionBasicBlockB(x_dim, x_dim, stride=1, heads=4, window_size=4)
                 )
-            else:
-                self.attn_blocks.append(nn.Identity())
 
-        self.attn_blocks = nn.ModuleList(self.attn_blocks)
+            self.attn_blocks = nn.ModuleList(self.attn_blocks)
 
         self.decoder = model.decoder
         self.depth_head = model.segmentation_head
@@ -55,8 +53,9 @@ class DepthModel(nn.Module):
 
         features = self.encoder(x)
 
-        for i, feature in enumerate(features):
-            features[i] = self.attn_blocks[i](feature)
+        if self.use_attn:
+            for i, feature in enumerate(features):
+                features[i] = self.attn_blocks[i](feature)
 
         decoder_output = self.decoder(*features)
 
