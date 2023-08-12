@@ -104,9 +104,9 @@ def run(args):
     else:
         ds_cls = NYUv2Dataset
 
-    ds = ds_cls(
+    train_ds = ds_cls(
         ds_args,
-        ds_args.mode,
+        "train",
         ds_args.split,
         transform=train_transform,
         do_augment=False,
@@ -116,13 +116,13 @@ def run(args):
         ds_args.batch_size = 1
         cfg.num_epochs = 100
         cfg.vis_freq_epochs = 10
-        ds_subset = torch.utils.data.Subset(ds, range(0, 1))
+        ds_subset = torch.utils.data.Subset(train_ds, range(0, 1))
         train_subset = val_subset = test_subset = ds_subset
     else:
         if cfg.do_overfit:
-            ds_subset = torch.utils.data.Subset(ds, range(0, 480))
+            ds_subset = torch.utils.data.Subset(train_ds, range(0, 480))
         else:
-            ds_subset = torch.utils.data.Subset(ds, range(0, 11_000))
+            ds_subset = torch.utils.data.Subset(train_ds, range(0, 11_000))
         train_ds_len = int(len(ds_subset) * 0.8)
         val_ds_len = int(len(ds_subset) * 0.1)
         train_subset = torch.utils.data.Subset(ds_subset, range(0, train_ds_len))
@@ -152,7 +152,7 @@ def run(args):
         benchmark_paths = json.load(open("../data/data_splits/eval_samples.json"))[
             args.ds
         ]
-        benchmark_batch = ds.load_benchmark_batch(benchmark_paths)
+        benchmark_batch = train_ds.load_benchmark_batch(benchmark_paths)
 
     model = DepthModel(
         in_channels=4 if args.line_op in ["concat", "concat_binary"] else 3,
@@ -276,7 +276,7 @@ def run(args):
                 out,
                 with_depth_diff=True,
                 with_colorbar=True,
-                max_depth=ds.max_depth,
+                max_depth=train_ds.max_depth,
             )
             experiment.log_figure(
                 name,
