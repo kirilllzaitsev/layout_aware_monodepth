@@ -10,6 +10,7 @@
 
 ```bash
 pip install git+https://github.com/kirilllzaitsev/how-do-vits-work.git@transformer
+pip install git+https://github.com/kujason/ip_basic.git@master
 pip install -r requirements.txt
 ```
 
@@ -34,7 +35,7 @@ See the available CLI arguments in the train_prototyping.py file.
 An example of a training command is provided below:
 
 ```bash
-python train_prototyping.py --exp_tags vp_filtering --num_epochs 20 --line_op concat_binary --do_overfit --use_eigen_test --line_filter vanishing_point --use_attn --ds nyu --max_depth_eval 10.0 --exp_disabled
+python train_prototyping.py --exp_tags vp_filtering --num_epochs 20 --line_op concat_binary --do_overfit --use_eigen --line_filter vanishing_point --use_attn --ds nyu --max_depth_eval 10.0 --exp_disabled
 ```
 
 Metrics, plots, and checkpoints are saved to the [Comet ML project](https://www.comet.com/kirilllzaitsev/layout-aware-monodepth/view/new/experiments).
