@@ -15,7 +15,7 @@ from torchvision import transforms
 from layout_aware_monodepth.cfg import cfg
 from layout_aware_monodepth.data.transforms import (
     ToTensor,
-    interpolate_depth_depth,
+    interpolate_depth,
     kb_crop,
     random_crop,
     resize_inputs,
@@ -165,10 +165,11 @@ class MonodepthDataset(Dataset):
         elif self.args.line_op == "concat_binary":
             lines = out["lines"][0].astype(np.int32)
 
-            if "vanishing_point" in self.args.line_filter:
-                lines = self.filter_lines_by_vp(lines, out["vp_labels"][0])
-            if "length" in self.args.line_filter:
-                lines = self.filter_lines_by_length(lines)
+            if self.args.line_filter is not None:
+                if "vanishing_point" in self.args.line_filter:
+                    lines = self.filter_lines_by_vp(lines, out["vp_labels"][0])
+                if "length" in self.args.line_filter:
+                    lines = self.filter_lines_by_length(lines)
 
             concat = np.zeros((image.shape[0], image.shape[1], 1))
             for line in lines:
@@ -292,8 +293,9 @@ class NYUv2Dataset(MonodepthDataset):
     max_depth = 10.0
     target_shape = (256, 256)
 
-    def __init__(self, *args_, **kwargs):
+    def __init__(self, *args_, do_interpolate_depth=False, **kwargs):
         super().__init__(*args_, **kwargs)
+        self.do_interpolate_depth = do_interpolate_depth
         with open(self.args.filenames_file) as json_file:
             json_data = json.load(json_file)
             self.filenames = json_data[self.mode]
@@ -308,7 +310,8 @@ class NYUv2Dataset(MonodepthDataset):
         image = self._load_rgb(f)
 
         dep_h5 = f["depth"][:]
-        depth_gt = interpolate_depth_depth(dep_h5.squeeze(), do_multiscale=True)
+        if self.do_interpolate_depth:
+            depth_gt = interpolate_depth(dep_h5.squeeze(), do_multiscale=True)
         depth_gt = Image.fromarray(depth_gt.astype("float32"), mode="F")
 
         return image, depth_gt

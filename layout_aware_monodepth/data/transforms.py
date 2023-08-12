@@ -139,7 +139,7 @@ def _is_numpy_image(img):
     return isinstance(img, np.ndarray) and (img.ndim in {2, 3})
 
 
-def interpolate_depth_depth(depth, do_multiscale=False, *args, **kwargs):
+def interpolate_depth(depth, do_multiscale=False, *args, **kwargs):
     """See depth_map_utils.fill_in_fast"""
     if do_multiscale:
         ddm, _ = depth_map_utils.fill_in_multiscale(
