@@ -123,17 +123,7 @@ def run(args):
             ds_subset = torch.utils.data.Subset(train_ds, range(0, 480))
         else:
             ds_subset = torch.utils.data.Subset(train_ds, range(0, 11_000))
-        train_ds_len = int(len(ds_subset) * 0.8)
-        val_ds_len = int(len(ds_subset) * 0.1)
-        train_subset = torch.utils.data.Subset(ds_subset, range(0, train_ds_len))
-        val_subset = torch.utils.data.Subset(
-            ds_subset, range(train_ds_len, train_ds_len + val_ds_len)
-        )
-        if cfg.do_overfit and not args.use_eigen:
-            test_subset = torch.utils.data.Subset(
-                ds_subset, range(train_ds_len + val_ds_len, len(ds_subset))
-            )
-        else:
+        if args.use_eigen:
             test_subset = ds_cls(
                 ds_args,
                 "test",
@@ -141,6 +131,22 @@ def run(args):
                 transform=test_transform,
                 do_augment=False,
             )
+            train_ds_share = 0.9
+            val_ds_share = 0.1
+        else:
+            train_ds_share = 0.8
+            val_ds_share = test_ds_share = 0.1
+            test_subset = torch.utils.data.Subset(
+                ds_subset, range(int(len(ds_subset) * (1 - test_ds_share)), len(ds_subset))
+            )
+            test_subset.dataset.transform = test_transform
+
+        train_ds_len = int(len(ds_subset) * train_ds_share)
+        val_ds_len = int(len(ds_subset) * val_ds_share)
+        train_subset = torch.utils.data.Subset(ds_subset, range(0, train_ds_len))
+        val_subset = torch.utils.data.Subset(
+            ds_subset, range(train_ds_len, train_ds_len + val_ds_len)
+        )
 
     train_loader = DataLoader(train_subset, batch_size=ds_args.batch_size, shuffle=True)
     val_loader = DataLoader(val_subset, batch_size=ds_args.batch_size)
