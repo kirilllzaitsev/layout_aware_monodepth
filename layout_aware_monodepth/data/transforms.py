@@ -90,7 +90,7 @@ def augment_image(image, ds_name="kitti"):
     return image_aug
 
 
-class ToTensor(object):
+class ToTensor:
     def __init__(self, mode):
         self.mode = mode
 
@@ -150,16 +150,27 @@ def interpolate_depth(depth, do_multiscale=False, *args, **kwargs):
     return ddm
 
 
+class CustomNormalize(object):
+    def __init__(self, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, tensor):
+        for t, m, s in zip(tensor[:3], self.mean, self.std):
+            t.sub_(m).div_(s)
+        return tensor
+
+
 train_transform = transforms.Compose(
     [
         ToTensor(mode="train"),
-        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        CustomNormalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ]
 )
 
 test_transform = transforms.Compose(
     [
         ToTensor(mode="test"),
-        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        CustomNormalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ]
 )
