@@ -312,6 +312,8 @@ class NYUv2Dataset(MonodepthDataset):
         dep_h5 = f["depth"][:]
         if self.do_interpolate_depth:
             depth_gt = interpolate_depth(dep_h5.squeeze(), do_multiscale=True)
+        else:
+            depth_gt = dep_h5.squeeze()
         depth_gt = Image.fromarray(depth_gt.astype("float32"), mode="F")
 
         return image, depth_gt
