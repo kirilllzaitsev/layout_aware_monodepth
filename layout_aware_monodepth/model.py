@@ -15,6 +15,7 @@ class DepthModel(nn.Module):
         decoder_first_channel=256,
         in_channels=3,
         use_attn=False,
+        use_extra_conv=False,
     ):
         super().__init__()
 
@@ -35,12 +36,26 @@ class DepthModel(nn.Module):
         self.encoder = model.encoder
 
         self.use_attn = use_attn
+        self.use_extra_conv = use_extra_conv
 
         if use_attn:
             self.attn_blocks = []
             for x_dim in self.encoder.out_channels:
                 self.attn_blocks.append(
                     AttentionBasicBlockB(x_dim, x_dim, stride=1, heads=4, window_size=4)
+                )
+
+            self.attn_blocks = nn.ModuleList(self.attn_blocks)
+        elif use_extra_conv:
+            self.attn_blocks = []
+            for x_dim in self.encoder.out_channels:
+                self.attn_blocks.append(
+                    nn.Sequential(
+                        nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
+                        nn.ReLU(inplace=True),
+                        nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
+                        nn.ReLU(inplace=True),
+                    )
                 )
 
             self.attn_blocks = nn.ModuleList(self.attn_blocks)
@@ -53,7 +68,7 @@ class DepthModel(nn.Module):
 
         features = self.encoder(x)
 
-        if self.use_attn:
+        if self.use_attn or self.use_extra_conv:
             for i, feature in enumerate(features):
                 features[i] = self.attn_blocks[i](feature)
 
