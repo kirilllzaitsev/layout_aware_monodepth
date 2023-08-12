@@ -293,9 +293,10 @@ class NYUv2Dataset(MonodepthDataset):
     max_depth = 10.0
     target_shape = (256, 256)
 
-    def __init__(self, *args_, do_interpolate_depth=False, **kwargs):
+    def __init__(self, *args_, do_interpolate_depth=False, do_crop=True, **kwargs):
         super().__init__(*args_, **kwargs)
         self.do_interpolate_depth = do_interpolate_depth
+        self.do_crop = do_crop
         with open(self.args.filenames_file) as json_file:
             json_data = json.load(json_file)
             self.filenames = json_data[self.mode]
@@ -315,6 +316,8 @@ class NYUv2Dataset(MonodepthDataset):
         else:
             depth_gt = dep_h5.squeeze()
         depth_gt = Image.fromarray(depth_gt.astype("float32"), mode="F")
+        if self.do_crop:
+            depth_gt = depth_gt.crop((43, 45, 608, 472))
 
         return image, depth_gt
 
@@ -331,8 +334,9 @@ class NYUv2Dataset(MonodepthDataset):
         image = self._load_rgb(f)
         return image
 
-    @classmethod
-    def _load_rgb(cls, f):
+    def _load_rgb(self, f):
         rgb_h5 = f["rgb"][:].transpose(1, 2, 0)
         image = Image.fromarray(rgb_h5, mode="RGB")
+        if self.do_crop:
+            image = image.crop((43, 45, 608, 472))
         return image
