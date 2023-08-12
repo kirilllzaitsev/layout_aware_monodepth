@@ -64,9 +64,9 @@ def plot_samples_and_preds(
 
         if with_depth_diff:
             axs_row.append(ax_3)
-            diff = (in_depth - d) * max_depth
+            diff = np.abs(in_depth - d) * max_depth
             ax_3.imshow(diff, cmap="magma")
-            attach_colorbar(ax_3, ax_3.images[0], vmin=None, vmax=None)
+            attach_colorbar(ax_3, ax_3.images[0], vmax=None)
 
         if with_lines_concat:
             axs_row.append(ax_4)
