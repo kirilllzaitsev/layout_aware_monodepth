@@ -76,6 +76,7 @@ def calc_metrics(gt, pred, mask=None, min_depth=1e-3):
     abs_rel = np.mean(np.abs(gt - pred) / gt)
     sq_rel = np.mean(((gt - pred) ** 2) / gt)
 
+    mae = np.mean(np.abs(gt - pred))
     rmse = (gt - pred) ** 2
     rmse = np.sqrt(rmse.mean())
 
@@ -89,6 +90,7 @@ def calc_metrics(gt, pred, mask=None, min_depth=1e-3):
     return dict(
         abs_rel=abs_rel,
         rmse=rmse,
+        mae=mae,
         sq_rel=sq_rel,
         rmse_log=rmse_log,
         delta1=delta1,
