@@ -142,7 +142,7 @@ def run(args):
                 range(int(len(ds_subset) * (1 - test_ds_share)), len(ds_subset)),
             )
             test_subset.dataset.transform = test_transform
-        num_workers = 8
+        num_workers = 0
 
         train_ds_len = int(len(ds_subset) * train_ds_share)
         val_ds_len = int(len(ds_subset) * val_ds_share)
