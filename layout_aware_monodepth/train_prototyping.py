@@ -21,7 +21,12 @@ from layout_aware_monodepth.logging_utils import log_metric, log_params_to_exp
 from layout_aware_monodepth.losses import MSELoss, SILogLoss
 from layout_aware_monodepth.metrics import RunningAverageDict, calc_metrics
 from layout_aware_monodepth.model import DepthModel
-from layout_aware_monodepth.pipeline_utils import create_tracking_exp, log_tags, save_model
+from layout_aware_monodepth.pipeline_utils import (
+    create_tracking_exp,
+    log_tags,
+    save_model,
+    setup_env,
+)
 from layout_aware_monodepth.postprocessing import (
     compute_eval_mask,
     postproc_eval_depths,
@@ -82,7 +87,7 @@ class Trainer:
 
 
 def run(args):
-    pl.seed_everything(1234)
+    setup_env()
 
     if args.ds == "kitti":
         config_path = "../configs/kitti_ds.yaml"
@@ -151,9 +156,18 @@ def run(args):
             ds_subset, range(train_ds_len, train_ds_len + val_ds_len)
         )
 
-    train_loader = DataLoader(train_subset, batch_size=ds_args.batch_size, shuffle=True, num_workers=num_workers)
-    val_loader = DataLoader(val_subset, batch_size=ds_args.batch_size, num_workers=num_workers)
-    test_loader = DataLoader(test_subset, batch_size=ds_args.batch_size, num_workers=num_workers)
+    train_loader = DataLoader(
+        train_subset,
+        batch_size=ds_args.batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+    )
+    val_loader = DataLoader(
+        val_subset, batch_size=ds_args.batch_size, num_workers=num_workers
+    )
+    test_loader = DataLoader(
+        test_subset, batch_size=ds_args.batch_size, num_workers=num_workers
+    )
 
     if cfg.use_single_sample:
         benchmark_batch = next(iter(train_loader))
@@ -290,8 +304,7 @@ def run(args):
         if (
             cfg.do_save_model
             and not args.do_overfit
-            and (epoch - 1) % cfg.save_freq_epochs == 0
-            or is_last_epoch
+            and ((epoch - 1) % cfg.save_freq_epochs == 0 or is_last_epoch)
         ):
             save_path = f"{exp_dir}/model_{epoch}.pth"
             save_model(save_path, epoch, model, optimizer)
@@ -320,7 +333,6 @@ def run(args):
 
     experiment.add_tags(["finished"])
     experiment.end()
-
 
 
 def main():

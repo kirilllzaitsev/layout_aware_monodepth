@@ -1,9 +1,8 @@
-import argparse
 import os
-import sys
-from pathlib import Path
+import random
 
 import comet_ml
+import numpy as np
 import torch
 
 
@@ -51,8 +50,15 @@ def log_tags(args, experiment, cfg):
     experiment.add_tags(tags)
 
 
-def setup_optimizations():
-    torch.backends.cudnn.benchmark = True
+def setup_env(seed=1234):
+    random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 
 
 def save_model(path, epoch, model, optimizer):
