@@ -53,3 +53,22 @@ def log_tags(args, experiment, cfg):
 
 def setup_optimizations():
     torch.backends.cudnn.benchmark = True
+
+
+def save_model(path, epoch, model, optimizer):
+    torch.save(
+        {
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+        },
+        path,
+    )
+    return True
+
+
+def load_model(path, model, optimizer):
+    checkpoint = torch.load(path)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    return model, optimizer

@@ -21,7 +21,7 @@ from layout_aware_monodepth.logging_utils import log_metric, log_params_to_exp
 from layout_aware_monodepth.losses import MSELoss, SILogLoss
 from layout_aware_monodepth.metrics import RunningAverageDict, calc_metrics
 from layout_aware_monodepth.model import DepthModel
-from layout_aware_monodepth.pipeline_utils import create_tracking_exp, log_tags
+from layout_aware_monodepth.pipeline_utils import create_tracking_exp, log_tags, save_model
 from layout_aware_monodepth.postprocessing import (
     compute_eval_mask,
     postproc_eval_depths,
@@ -294,7 +294,7 @@ def run(args):
             or is_last_epoch
         ):
             save_path = f"{exp_dir}/model_{epoch}.pth"
-            torch.save(model.state_dict(), save_path)
+            save_model(save_path, epoch, model, optimizer)
             experiment.log_model(f"depth_model_{epoch}", save_path, overwrite=False)
 
         train_batch_bar.close()
