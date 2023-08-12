@@ -1,5 +1,5 @@
 ds_name: kitti
-batch_size: 8
+batch_size: 32
 mode: train
 
 split: eigen
