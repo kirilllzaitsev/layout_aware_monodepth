@@ -37,5 +37,19 @@ def create_tracking_exp(cfg) -> comet_ml.Experiment:
     return experiment
 
 
+def log_tags(args, experiment, cfg):
+    tags = [
+        args.ds,
+        "overfit" if cfg.do_overfit else "full",
+        f"{cfg.line_op}_lines",
+        f"filter_{args.line_filter}",
+    ]
+    tags += args.exp_tags
+    if args.use_single_sample:
+        tags.append("single_sample")
+
+    experiment.add_tags(tags)
+
+
 def setup_optimizations():
     torch.backends.cudnn.benchmark = True

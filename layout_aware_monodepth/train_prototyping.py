@@ -21,7 +21,7 @@ from layout_aware_monodepth.logging_utils import log_metric, log_params_to_exp
 from layout_aware_monodepth.losses import MSELoss, SILogLoss
 from layout_aware_monodepth.metrics import RunningAverageDict, calc_metrics
 from layout_aware_monodepth.model import DepthModel
-from layout_aware_monodepth.pipeline_utils import create_tracking_exp
+from layout_aware_monodepth.pipeline_utils import create_tracking_exp, log_tags
 from layout_aware_monodepth.postprocessing import (
     compute_eval_mask,
     postproc_eval_depths,
@@ -137,7 +137,8 @@ def run(args):
             train_ds_share = 0.8
             val_ds_share = test_ds_share = 0.1
             test_subset = torch.utils.data.Subset(
-                ds_subset, range(int(len(ds_subset) * (1 - test_ds_share)), len(ds_subset))
+                ds_subset,
+                range(int(len(ds_subset) * (1 - test_ds_share)), len(ds_subset)),
             )
             test_subset.dataset.transform = test_transform
 
@@ -175,15 +176,7 @@ def run(args):
     exp_dir = f"{cfg.exp_base_dir}/{experiment.name}"
     os.makedirs(exp_dir, exist_ok=True)
 
-    experiment.add_tags(
-        [
-            args.ds,
-            "overfit" if cfg.do_overfit else "full",
-            f"{cfg.line_op}_lines",
-            f"filter_{args.line_filter}",
-        ]
-        + args.exp_tags
-    )
+    log_tags(args, experiment, cfg)
 
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     log_params_to_exp(
@@ -294,6 +287,7 @@ def run(args):
 
         if (
             cfg.do_save_model
+            and not args.do_overfit
             and (epoch - 1) % cfg.save_freq_epochs == 0
             or is_last_epoch
         ):
@@ -324,6 +318,7 @@ def run(args):
 
     experiment.add_tags(["finished"])
     experiment.end()
+
 
 
 def main():
