@@ -118,6 +118,7 @@ def run(args):
         cfg.vis_freq_epochs = 10
         ds_subset = torch.utils.data.Subset(train_ds, range(0, 1))
         train_subset = val_subset = test_subset = ds_subset
+        num_workers = 0
     else:
         if cfg.do_overfit:
             ds_subset = torch.utils.data.Subset(train_ds, range(0, 480))
@@ -141,6 +142,7 @@ def run(args):
                 range(int(len(ds_subset) * (1 - test_ds_share)), len(ds_subset)),
             )
             test_subset.dataset.transform = test_transform
+        num_workers = 8
 
         train_ds_len = int(len(ds_subset) * train_ds_share)
         val_ds_len = int(len(ds_subset) * val_ds_share)
@@ -149,9 +151,9 @@ def run(args):
             ds_subset, range(train_ds_len, train_ds_len + val_ds_len)
         )
 
-    train_loader = DataLoader(train_subset, batch_size=ds_args.batch_size, shuffle=True)
-    val_loader = DataLoader(val_subset, batch_size=ds_args.batch_size)
-    test_loader = DataLoader(test_subset, batch_size=ds_args.batch_size)
+    train_loader = DataLoader(train_subset, batch_size=ds_args.batch_size, shuffle=True, num_workers=num_workers)
+    val_loader = DataLoader(val_subset, batch_size=ds_args.batch_size, num_workers=num_workers)
+    test_loader = DataLoader(test_subset, batch_size=ds_args.batch_size, num_workers=num_workers)
 
     if cfg.use_single_sample:
         benchmark_batch = next(iter(train_loader))
