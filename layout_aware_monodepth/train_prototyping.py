@@ -120,7 +120,7 @@ def run(args):
         train_subset = val_subset = test_subset = ds_subset
     else:
         if cfg.do_overfit:
-            ds_subset = torch.utils.data.Subset(ds, range(0, 280))
+            ds_subset = torch.utils.data.Subset(ds, range(0, 480))
         else:
             ds_subset = torch.utils.data.Subset(ds, range(0, 11_000))
         train_ds_len = int(len(ds_subset) * 0.8)
@@ -129,7 +129,7 @@ def run(args):
         val_subset = torch.utils.data.Subset(
             ds_subset, range(train_ds_len, train_ds_len + val_ds_len)
         )
-        if cfg.do_overfit:
+        if cfg.do_overfit and not args.use_eigen:
             test_subset = torch.utils.data.Subset(
                 ds_subset, range(train_ds_len + val_ds_len, len(ds_subset))
             )
@@ -157,6 +157,7 @@ def run(args):
     model = DepthModel(
         in_channels=4 if args.line_op in ["concat", "concat_binary"] else 3,
         use_attn=args.use_attn,
+        use_extra_conv=args.use_extra_conv,
     )
     model.to(device)
 
@@ -173,6 +174,7 @@ def run(args):
             args.ds,
             "overfit" if cfg.do_overfit else "full",
             f"{cfg.line_op}_lines",
+            f"filter_{args.line_filter}",
         ]
         + args.exp_tags
     )
@@ -331,6 +333,8 @@ def main():
     parser.add_argument("--use_single_sample", action="store_true")
     parser.add_argument("--exp_disabled", action="store_true")
     parser.add_argument("--use_attn", action="store_true")
+    parser.add_argument("--use_extra_conv", action="store_true")
+    parser.add_argument("--use_eigen", action="store_true")
     parser.add_argument("--num_epochs", type=int, default=20)
     parser.add_argument("--crop_type", choices=["garg", "eigen"], default=None)
 
