@@ -164,13 +164,13 @@ class CustomNormalize(object):
 train_transform = transforms.Compose(
     [
         ToTensor(mode="train"),
-        CustomNormalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        # CustomNormalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ]
 )
 
 test_transform = transforms.Compose(
     [
         ToTensor(mode="test"),
-        CustomNormalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        # CustomNormalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ]
 )
