@@ -5,6 +5,7 @@ import os
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+import torch.optim as optim
 import torchvision as tv
 import yaml
 from torch.utils.data import DataLoader
@@ -17,6 +18,7 @@ from layout_aware_monodepth.data.transforms import (
     test_transform,
     train_transform,
 )
+from layout_aware_monodepth.extras import EarlyStopper
 from layout_aware_monodepth.logging_utils import log_metric, log_params_to_exp
 from layout_aware_monodepth.losses import MSELoss, SILogLoss
 from layout_aware_monodepth.metrics import RunningAverageDict, calc_metrics
@@ -184,8 +186,10 @@ def run(args):
     )
     model.to(device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=5e-4)
+    lr = 5e-4
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = SILogLoss()
+    early_stopper = EarlyStopper(patience=cfg.num_epochs // 5, min_delta=1e-2)
 
     epoch_bar = tqdm(total=cfg.num_epochs, leave=False)
     experiment = create_tracking_exp(cfg)
@@ -246,6 +250,7 @@ def run(args):
             global_step += 1
             log_metric(experiment, train_metrics, global_step, prefix="step")
             train_metrics_avg.update(train_metrics)
+            # scheduler.step()
 
         for val_batch in val_loader:
             val_step_res = trainer.eval_step(model, val_batch, criterion)
@@ -330,6 +335,12 @@ def run(args):
 
         print(f"\nTEST metrics:\n{test_metrics_avg}\n")
         log_metric(experiment, test_metrics_avg.get_value(), epoch, prefix="epoch")
+
+        if early_stopper.early_stop(val_metrics_avg.get_value()["val_loss"]):
+            print(
+                f"Early stopping. Best val loss: {early_stopper.min_validation_loss}. Current val loss: {val_metrics_avg.get_value()['val_loss']}"
+            )
+            break
 
     experiment.add_tags(["finished"])
     experiment.end()
