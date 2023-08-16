@@ -97,9 +97,13 @@ def run(args):
         config_path = "../configs/nyu_ds.yaml"
 
     ds_args = argparse.Namespace(**yaml.load(open(config_path), Loader=yaml.FullLoader))
+    non_overridden_ds_args = []
     for k, v in vars(args).items():
         if hasattr(ds_args, k):
             setattr(ds_args, k, v)
+        else:
+            non_overridden_ds_args.append(k)
+    print(f"Non-overridden ds_args: {non_overridden_ds_args}")
 
     if args.ds == "kitti":
         ds_cls = KITTIDataset
