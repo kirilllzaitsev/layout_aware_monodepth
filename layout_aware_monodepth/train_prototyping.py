@@ -10,8 +10,8 @@ import torchvision as tv
 import yaml
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
 from layout_aware_monodepth.cfg import cfg
+
 from layout_aware_monodepth.data.monodepth import KITTIDataset, NYUv2Dataset
 from layout_aware_monodepth.data.transforms import (
     ToTensor,
@@ -96,15 +96,10 @@ def run(args):
     else:
         config_path = "../configs/nyu_ds.yaml"
 
-    cfg.exp_disabled = args.exp_disabled
-    cfg.use_single_sample = args.use_single_sample
-    cfg.do_overfit = args.do_overfit
-    cfg.line_op = args.line_op
-    cfg.num_epochs = args.num_epochs
-
-    ds_args = argparse.Namespace(**yaml.load(open(config_path), Loader=yaml.FullLoader))
-    for k, v in vars(args).items():
-        setattr(ds_args, k, v)
+    ds_args = yaml.load(open(config_path), Loader=yaml.FullLoader)
+    for k, v in ds_args.items():
+        if not hasattr(args, k):
+            setattr(args, k, v)
 
     if args.ds == "kitti":
         ds_cls = KITTIDataset
@@ -119,15 +114,15 @@ def run(args):
         do_augment=False,
     )
 
-    if cfg.use_single_sample and cfg.do_overfit:
+    if args.use_single_sample and args.do_overfit:
         ds_args.batch_size = 1
-        cfg.num_epochs = 100
-        cfg.vis_freq_epochs = 10
+        args.num_epochs = 100
+        args.vis_freq_epochs = 10
         ds_subset = torch.utils.data.Subset(train_ds, range(0, 1))
         train_subset = val_subset = test_subset = ds_subset
         num_workers = 0
     else:
-        if cfg.do_overfit:
+        if args.do_overfit:
             ds_subset = torch.utils.data.Subset(train_ds, range(0, 480))
         else:
             ds_subset = torch.utils.data.Subset(train_ds, range(0, 11_000))
@@ -171,7 +166,7 @@ def run(args):
         test_subset, batch_size=ds_args.batch_size, num_workers=num_workers
     )
 
-    if cfg.use_single_sample:
+    if args.use_single_sample:
         benchmark_batch = next(iter(train_loader))
     else:
         benchmark_paths = json.load(open("../data/data_splits/eval_samples.json"))[
@@ -189,21 +184,21 @@ def run(args):
     lr = 1e-3
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = SILogLoss()
-    early_stopper = EarlyStopper(patience=cfg.num_epochs // 5, min_delta=1e-2)
+    early_stopper = EarlyStopper(patience=args.num_epochs // 5, min_delta=1e-2)
     scheduler = optim.lr_scheduler.LinearLR(
         optimizer,
         start_factor=1.0,
         end_factor=1e-2,
-        total_iters=cfg.num_epochs,
+        total_iters=args.num_epochs,
         verbose=True,
     )
 
-    epoch_bar = tqdm(total=cfg.num_epochs, leave=False)
+    epoch_bar = tqdm(total=args.num_epochs, leave=False)
     experiment = create_tracking_exp(cfg)
     exp_dir = f"{cfg.exp_base_dir}/{experiment.name}"
     os.makedirs(exp_dir, exist_ok=True)
 
-    log_tags(args, experiment, cfg)
+    log_tags(args, experiment)
 
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     log_params_to_exp(
@@ -229,7 +224,7 @@ def run(args):
         args, model, optimizer, criterion, train_loader, val_loader, test_loader
     )
 
-    for epoch in range(cfg.num_epochs):
+    for epoch in range(args.num_epochs):
         train_batch_bar = tqdm(total=len(train_loader), leave=True)
         val_batch_bar = tqdm(total=len(val_loader), leave=True)
 
@@ -277,8 +272,8 @@ def run(args):
         log_metric(experiment, train_metrics_avg.get_value(), epoch, prefix="epoch")
         log_metric(experiment, val_metrics_avg.get_value(), epoch, prefix="epoch")
 
-        is_last_epoch = epoch == cfg.num_epochs - 1
-        if (epoch - 1) % cfg.vis_freq_epochs == 0 or is_last_epoch:
+        is_last_epoch = epoch == args.num_epochs - 1
+        if (epoch - 1) % args.vis_freq_epochs == 0 or is_last_epoch:
             benchmark_step_res = trainer.eval_step(model, benchmark_batch, criterion)
             benchmark_metrics = {
                 f"benchmark_{k}": v
@@ -314,9 +309,9 @@ def run(args):
             print(f"\nBENCHMARK metrics:\n{benchmark_metrics_avg}\n")
 
         if (
-            cfg.do_save_model
+            args.do_save_model
             and not args.do_overfit
-            and ((epoch - 1) % cfg.save_freq_epochs == 0 or is_last_epoch)
+            and ((epoch - 1) % args.save_freq_epochs == 0 or is_last_epoch)
         ):
             save_path = f"{exp_dir}/model_{epoch}.pth"
             save_model(save_path, epoch, model, optimizer)
@@ -370,7 +365,10 @@ def main():
     parser.add_argument("--use_attn", action="store_true")
     parser.add_argument("--use_extra_conv", action="store_true")
     parser.add_argument("--use_eigen", action="store_true")
+    parser.add_argument("--do_save_model", action="store_true")
     parser.add_argument("--num_epochs", type=int, default=20)
+    parser.add_argument("--save_freq_epochs", type=int, default=2)
+    parser.add_argument("--vis_freq_epochs", type=int, default=1)
     parser.add_argument("--crop_type", choices=["garg", "eigen"], default=None)
 
     parser.add_argument(
