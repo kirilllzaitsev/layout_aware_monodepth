@@ -186,10 +186,17 @@ def run(args):
     )
     model.to(device)
 
-    lr = 5e-4
+    lr = 1e-3
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = SILogLoss()
     early_stopper = EarlyStopper(patience=cfg.num_epochs // 5, min_delta=1e-2)
+    scheduler = optim.lr_scheduler.LinearLR(
+        optimizer,
+        start_factor=1.0,
+        end_factor=1e-2,
+        total_iters=cfg.num_epochs,
+        verbose=True,
+    )
 
     epoch_bar = tqdm(total=cfg.num_epochs, leave=False)
     experiment = create_tracking_exp(cfg)
@@ -341,6 +348,8 @@ def run(args):
                 f"Early stopping. Best val loss: {early_stopper.min_validation_loss}. Current val loss: {val_metrics_avg.get_value()['val_loss']}"
             )
             break
+
+        scheduler.step()
 
     experiment.add_tags(["finished"])
     experiment.end()
