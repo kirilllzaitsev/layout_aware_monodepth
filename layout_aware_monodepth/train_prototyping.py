@@ -96,10 +96,10 @@ def run(args):
     else:
         config_path = "../configs/nyu_ds.yaml"
 
-    ds_args = yaml.load(open(config_path), Loader=yaml.FullLoader)
-    for k, v in ds_args.items():
-        if not hasattr(args, k):
-            setattr(args, k, v)
+    ds_args = argparse.Namespace(**yaml.load(open(config_path), Loader=yaml.FullLoader))
+    for k, v in vars(args).items():
+        if hasattr(ds_args, k):
+            setattr(ds_args, k, v)
 
     if args.ds == "kitti":
         ds_cls = KITTIDataset
