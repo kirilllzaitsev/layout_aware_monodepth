@@ -9,24 +9,18 @@ import numpy as np
 import torch
 import torch.utils.data.distributed
 from PIL import Image
-from torch.utils.data import DataLoader, Dataset
-from torchvision import transforms
+from torch.utils.data import Dataset
 
 from layout_aware_monodepth.cfg import cfg
 from layout_aware_monodepth.data.transforms import (
     ToTensor,
     interpolate_depth,
     kb_crop,
-    random_crop,
     resize_inputs,
     rotate_image,
     test_transform,
     train_preprocess,
 )
-
-
-def preprocessing_transforms(mode):
-    return transforms.Compose([ToTensor(mode=mode)])
 
 
 class MonodepthDataset(Dataset):
