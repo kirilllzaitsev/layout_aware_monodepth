@@ -88,3 +88,21 @@ def plot_samples_and_preds(
     fig.subplots_adjust(wspace=0.05, hspace=0.05)
     plt.tight_layout()
     return fig
+
+
+def plot_batch(b):
+    for image, depth in zip(b["image"], b["depth"]):
+        ncols = 2 if image.shape[0] == 3 else 3
+        fig, axs = plt.subplots(1, ncols)
+        if ncols == 2:
+            axs[0].imshow(image.permute(1, 2, 0))
+        else:
+            axs[0].imshow(image[:3].permute(1, 2, 0))
+            axs[2].imshow(image[3:].permute(1, 2, 0))
+            axs[2].set_title("line channel")
+        axs[1].imshow(depth)
+        axs[0].set_title("image")
+        axs[1].set_title("depth")
+        for ax in axs[1:]:
+            ax.axis("off")
+        plt.show()
