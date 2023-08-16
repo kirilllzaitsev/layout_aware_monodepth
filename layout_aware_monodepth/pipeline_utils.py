@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 
-def create_tracking_exp(cfg) -> comet_ml.Experiment:
+def create_tracking_exp(exp_disabled) -> comet_ml.Experiment:
     experiment = comet_ml.Experiment(
         api_key="W5npcWDiWeNPoB2OYkQvwQD0C",
         project_name="layout-aware-monodepth",
@@ -18,7 +18,7 @@ def create_tracking_exp(cfg) -> comet_ml.Experiment:
         log_env_gpu=True,
         log_env_cpu=True,
         log_code=False,
-        disabled=cfg.exp_disabled,
+        disabled=exp_disabled,
     )
 
     for code_file in [

@@ -198,7 +198,7 @@ def run(args):
     )
 
     epoch_bar = tqdm(total=args.num_epochs, leave=False)
-    experiment = create_tracking_exp(cfg)
+    experiment = create_tracking_exp(args.exp_disabled)
     exp_dir = f"{cfg.exp_base_dir}/{experiment.name}"
     os.makedirs(exp_dir, exist_ok=True)
 
