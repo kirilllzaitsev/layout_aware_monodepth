@@ -36,11 +36,11 @@ def create_tracking_exp(cfg) -> comet_ml.Experiment:
     return experiment
 
 
-def log_tags(args, experiment, cfg):
+def log_tags(args, experiment):
     tags = [
         args.ds,
-        "overfit" if cfg.do_overfit else "full",
-        f"{cfg.line_op}_lines",
+        "overfit" if args.do_overfit else "full",
+        f"{args.line_op}_lines",
         f"filter_{args.line_filter}",
     ]
     tags += args.exp_tags
