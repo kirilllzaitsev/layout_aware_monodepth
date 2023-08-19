@@ -1,6 +1,7 @@
 import json
 import os
 import random
+import re
 from functools import lru_cache
 
 import cv2
@@ -227,7 +228,7 @@ class KITTIDataset(MonodepthDataset):
 
     def load_img_and_depth(self, paths_map):
         rgb_path = (
-            self.from_local_to_cluster(paths_map["rgb"])
+            self.from_local_path_to_cluster(paths_map["rgb"])
             if cfg.is_cluster
             else paths_map["rgb"]
         )
@@ -262,10 +263,13 @@ class KITTIDataset(MonodepthDataset):
 
         return self.load_img_and_depth_from_path(image_path, depth_path)
 
-    def from_local_to_cluster(self, local):
-        local = local[local.find("/") + 1 :]
-        day = local[:10]
-        return day + "/" + local
+    def from_local_path_to_cluster(self, path):
+        # example: train/2011_09_26_drive_0002_sync
+        sync_folder = path[path.find("/") + 1 :]
+        day = sync_folder[:10]
+        if re.match(r"\d{4}_\d{2}_\d{2}", day) is not None:
+            return day + "/" + sync_folder
+        return path
 
     def load_img_and_depth_from_path(self, image_path, depth_path):
         image = self.load_rgb(image_path)
