@@ -10,8 +10,8 @@ import torchvision as tv
 import yaml
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from layout_aware_monodepth.cfg import cfg
 
+from layout_aware_monodepth.cfg import cfg
 from layout_aware_monodepth.data.monodepth import KITTIDataset, NYUv2Dataset
 from layout_aware_monodepth.data.transforms import (
     ToTensor,
@@ -92,12 +92,15 @@ class Trainer:
 def run(args):
     setup_env()
 
-    if args.ds == "kitti":
-        config_path = "../configs/kitti_ds.yaml"
-    else:
-        config_path = "../configs/nyu_ds.yaml"
+    config_path = f"../configs/{args.ds}_ds.yaml"
 
-    ds_args = argparse.Namespace(**yaml.load(open(config_path), Loader=yaml.FullLoader))
+    primary_ds_config = yaml.safe_load(open(config_path))
+    if cfg.is_cluster:
+        aux_ds_config = yaml.safe_load(open(f"../configs/{args.ds}_ds_cluster.yaml"))
+        ds_config = {**primary_ds_config, **aux_ds_config}
+    else:
+        ds_config = primary_ds_config
+    ds_args = argparse.Namespace(**ds_config)
     non_overridden_ds_args = []
     for k, v in vars(args).items():
         if hasattr(ds_args, k):

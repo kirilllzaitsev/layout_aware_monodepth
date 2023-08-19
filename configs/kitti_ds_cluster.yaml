@@ -1,0 +1,2 @@
+batch_size: 16
+filenames_file: ../data/data_splits/kitti_dc.json

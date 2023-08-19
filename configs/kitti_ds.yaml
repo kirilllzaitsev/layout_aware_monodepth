@@ -1,6 +1,5 @@
 ds_name: kitti
-batch_size: 32
-mode: train
+batch_size: 16
 
 split: eigen
 # split: null
@@ -16,4 +15,5 @@ do_kb_crop: true
 do_random_rotate: false
 degree: 2.5
 
-line_op: concat
+line_op: null
+line_filter: null
