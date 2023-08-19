@@ -325,6 +325,7 @@ def run(args):
             save_path = f"{exp_dir}/model_{epoch}.pth"
             save_model(save_path, epoch, model, optimizer)
             experiment.log_model(f"depth_model_{epoch}", save_path, overwrite=False)
+            print(f"Saved model to {save_path}")
 
         train_batch_bar.close()
         val_batch_bar.close()

@@ -3,7 +3,6 @@ batch_size: 10
 split: eigen
 
 data_path: /mnt/wext/msc_studies/monodepth_project/data/nyuv2-depth
-data_path_cluster: /cluster/scratch/kzaitse/nyu-depth
 filenames_file: ../data/data_splits/nyu.json
 
 do_random_rotate: false

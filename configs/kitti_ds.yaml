@@ -5,7 +5,6 @@ split: eigen
 # split: null
 
 data_path: /mnt/wext/msc_studies/monodepth_project/data/kitti/kitti-depth
-data_path_cluster: /cluster/scratch/kzaitse/kitti-depth
 filenames_file: ../data/data_splits/kitti_dc.json
 
 input_height: 352

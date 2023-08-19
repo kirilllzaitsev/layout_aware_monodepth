@@ -44,9 +44,7 @@ class MonodepthDataset(Dataset):
         self.do_augment = do_augment
         self.to_tensor = ToTensor
         self.filenames = []
-        self.data_dir = (
-            self.args.data_path_cluster if cfg.is_cluster else self.args.data_path
-        )
+        self.data_dir = self.args.data_path
 
         if self.args.line_op is not None:
             from layout_aware_monodepth.data.tmp import load_deeplsd

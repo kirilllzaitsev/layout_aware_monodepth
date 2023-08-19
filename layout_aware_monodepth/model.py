@@ -51,6 +51,7 @@ class DepthModel(nn.Module):
                 else:
                     dummy_input = self.encoder.model.blocks[block_idx](dummy_input)
                     x_dim = dummy_input.shape[1]
+                    print(f"{x_dim=}")
                 if use_attn:
                     block = AttentionBasicBlockB(
                         x_dim,
@@ -70,8 +71,6 @@ class DepthModel(nn.Module):
                 self.encoder.model.blocks[block_idx] = nn.Sequential(
                     self.encoder.model.blocks[block_idx], block
                 )
-
-                print(f"{x_dim=}")
 
         self.decoder = model.decoder
         self.depth_head = model.segmentation_head
