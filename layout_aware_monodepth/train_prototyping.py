@@ -187,12 +187,9 @@ def run(args):
     model.to(device)
 
     lr = 1e-3
-    # optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    optimizer = torch.optim.Adam(model.encoder.model.blocks[0][-1].parameters(), lr=lr)
-    # criterion = SILogLoss()
-    criterion = MSELoss()
-    # early_stopper = EarlyStopper(patience=args.num_epochs // 5, min_delta=1e-2)
-    early_stopper = EarlyStopper(patience=args.num_epochs // 1, min_delta=1e-2)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    criterion = SILogLoss()
+    early_stopper = EarlyStopper(patience=args.num_epochs // 5, min_delta=1e-2)
     scheduler = optim.lr_scheduler.LinearLR(
         optimizer,
         start_factor=1.0,
@@ -232,12 +229,6 @@ def run(args):
     trainer = Trainer(
         args, model, optimizer, criterion, train_loader, val_loader, test_loader
     )
-
-    from copy import deepcopy
-    params_before = deepcopy(model.state_dict())
-    # for p in model.attn_blocks.parameters():
-    #     p.register_hook(lambda grad: torch.clamp(grad, -1, 1))
-    torch.save(params_before, f"{exp_dir}/params_before.pth")
 
     for epoch in range(args.num_epochs):
         train_batch_bar = tqdm(total=len(train_loader), leave=True)
@@ -363,9 +354,6 @@ def run(args):
 
     experiment.add_tags(["finished"])
     experiment.end()
-
-    params_after = deepcopy(model.state_dict())
-    torch.save(params_after, f"{exp_dir}/params_after.pth")
 
 
 def main():
