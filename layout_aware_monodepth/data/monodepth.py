@@ -237,11 +237,17 @@ class KITTIDataset(MonodepthDataset):
                 "kitti_raw_data",
                 rgb_path,
             )
-            depth_path = os.path.join(
-                self.data_dir,
-                f"data_depth_annotated/{self.mode}",
-                paths_map["gt"],
-            )
+            if "data_" in rgb_path:
+                depth_path = os.path.join(
+                    self.data_dir,
+                    paths_map["gt"],
+                )
+            else:
+                depth_path = os.path.join(
+                    self.data_dir,
+                    f"data_depth_annotated/{self.mode}",
+                    paths_map["gt"],
+                )
         elif "data_" in rgb_path:
             image_path = os.path.join(self.data_dir, rgb_path)
             depth_path = os.path.join(
