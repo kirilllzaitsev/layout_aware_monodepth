@@ -121,7 +121,7 @@ def run(args):
 
     if args.use_single_sample and args.do_overfit:
         ds_args.batch_size = 1
-        args.num_epochs = 150
+        args.num_epochs = 100
         args.vis_freq_epochs = 10
         ds_subset = torch.utils.data.Subset(train_ds, range(0, 1))
         train_subset = val_subset = test_subset = ds_subset

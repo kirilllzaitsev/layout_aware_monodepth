@@ -55,7 +55,6 @@ class MonodepthDataset(Dataset):
 
             self.deeplsd = load_deeplsd(self.device)
 
-    @lru_cache(maxsize=128)
     def __getitem__(self, idx):
         image, depth_gt = self.load_img_and_depth(self.filenames[idx])
 
@@ -246,7 +245,7 @@ class KITTIDataset(MonodepthDataset):
         elif "data_" in rgb_path:
             image_path = os.path.join(self.data_dir, rgb_path)
             depth_path = os.path.join(
-                self.data_dir, self.from_local_to_cluster(paths_map["gt"])
+                self.data_dir, self.from_local_path_to_cluster(paths_map["gt"])
             )
         else:
             if cfg.is_cluster:
