@@ -1,16 +1,13 @@
 ds_name: nyu
-batch_size: 32
-mode: train
+batch_size: 10
 split: eigen
 
 data_path: /mnt/wext/msc_studies/monodepth_project/data/nyuv2-depth
 data_path_cluster: /cluster/scratch/kzaitse/nyu-depth
 filenames_file: ../data/data_splits/nyu.json
 
-input_height: 480
-input_width: 640
-
 do_random_rotate: false
 degree: 2.5
 
-line_op: concat
+line_op: null
+line_filter: null

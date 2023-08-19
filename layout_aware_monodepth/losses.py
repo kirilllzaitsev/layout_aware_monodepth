@@ -9,7 +9,7 @@ class SILogLoss(nn.Module):
         super(SILogLoss, self).__init__()
         self.name = "SILog"
 
-    def forward(self, pred, target, mask=None, interpolate=True, min_depth=1e-3):
+    def forward(self, pred, target, mask=None, interpolate=False, min_depth=1e-3):
         if interpolate:
             pred = nn.functional.interpolate(
                 pred, target.shape[-2:], mode="bilinear", align_corners=True
@@ -33,7 +33,7 @@ class MSELoss(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, pred, target, mask=None, interpolate=True, min_depth=1e-3):
+    def forward(self, pred, target, mask=None, interpolate=False, min_depth=1e-3):
         if interpolate:
             pred = nn.functional.interpolate(
                 pred, target.shape[-2:], mode="bilinear", align_corners=True

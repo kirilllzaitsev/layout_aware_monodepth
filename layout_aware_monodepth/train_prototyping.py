@@ -57,6 +57,7 @@ class Trainer:
         out = model(x)
         loss = criterion(out, y)
         loss.backward()
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
         optimizer.step()
         return {"loss": loss.item(), "pred": out}
 
@@ -120,7 +121,7 @@ def run(args):
 
     if args.use_single_sample and args.do_overfit:
         ds_args.batch_size = 1
-        args.num_epochs = 100
+        args.num_epochs = 150
         args.vis_freq_epochs = 10
         ds_subset = torch.utils.data.Subset(train_ds, range(0, 1))
         train_subset = val_subset = test_subset = ds_subset
@@ -186,9 +187,12 @@ def run(args):
     model.to(device)
 
     lr = 1e-3
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    criterion = SILogLoss()
-    early_stopper = EarlyStopper(patience=args.num_epochs // 5, min_delta=1e-2)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model.encoder.model.blocks[0][-1].parameters(), lr=lr)
+    # criterion = SILogLoss()
+    criterion = MSELoss()
+    # early_stopper = EarlyStopper(patience=args.num_epochs // 5, min_delta=1e-2)
+    early_stopper = EarlyStopper(patience=args.num_epochs // 1, min_delta=1e-2)
     scheduler = optim.lr_scheduler.LinearLR(
         optimizer,
         start_factor=1.0,
@@ -228,6 +232,12 @@ def run(args):
     trainer = Trainer(
         args, model, optimizer, criterion, train_loader, val_loader, test_loader
     )
+
+    from copy import deepcopy
+    params_before = deepcopy(model.state_dict())
+    # for p in model.attn_blocks.parameters():
+    #     p.register_hook(lambda grad: torch.clamp(grad, -1, 1))
+    torch.save(params_before, f"{exp_dir}/params_before.pth")
 
     for epoch in range(args.num_epochs):
         train_batch_bar = tqdm(total=len(train_loader), leave=True)
@@ -354,6 +364,9 @@ def run(args):
     experiment.add_tags(["finished"])
     experiment.end()
 
+    params_after = deepcopy(model.state_dict())
+    torch.save(params_after, f"{exp_dir}/params_after.pth")
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -385,6 +398,8 @@ def main():
 
     parser.add_argument("--exp_tags", nargs="*", default=[])
     args = parser.parse_args()
+    with open("./recent_train_args.yaml", "w") as f:
+        yaml.dump(vars(args), f, default_flow_style=False)
     run(args)
 
 
