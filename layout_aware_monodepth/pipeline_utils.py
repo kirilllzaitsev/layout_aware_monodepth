@@ -36,16 +36,22 @@ def create_tracking_exp(exp_disabled) -> comet_ml.Experiment:
     return experiment
 
 
-def log_tags(args, experiment):
+def log_tags(args, experiment, cfg):
+    def add_tag(cond, tag, alt_tag=None):
+        if cond:
+            tags.append(tag)
+        elif alt_tag is not None:
+            tags.append(alt_tag)
+
     tags = [
         args.ds,
-        "overfit" if args.do_overfit else "full",
         f"{args.line_op}_lines",
         f"filter_{args.line_filter}",
     ]
     tags += args.exp_tags
-    if args.use_single_sample:
-        tags.append("single_sample")
+    add_tag(args.do_overfit, "overfit", "full")
+    add_tag(args.use_single_sample, "single_sample")
+    add_tag(cfg.is_cluster, "cluster")
 
     experiment.add_tags(tags)
 
@@ -58,7 +64,6 @@ def setup_env(seed=1234):
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-
 
 
 def save_model(path, epoch, model, optimizer):
