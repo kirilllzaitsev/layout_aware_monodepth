@@ -232,22 +232,31 @@ class KITTIDataset(MonodepthDataset):
             else paths_map["rgb"]
         )
         if self.split == "eigen":
-            image_path = os.path.join(
-                self.data_dir.replace("/kitti-depth", ""),
-                "kitti_raw_data",
-                rgb_path,
-            )
             if "data_" in rgb_path:
+                image_path = os.path.join(
+                    self.data_dir,
+                    rgb_path,
+                )
                 depth_path = os.path.join(
                     self.data_dir,
                     paths_map["gt"],
                 )
             else:
-                depth_path = os.path.join(
-                    self.data_dir,
-                    f"data_depth_annotated/{self.mode}",
-                    paths_map["gt"],
+                image_path = os.path.join(
+                    self.data_dir.replace("/kitti-depth", ""),
+                    "kitti_raw_data",
+                    rgb_path,
                 )
+                for mode in ["train", "val"]:
+                    depth_path = os.path.join(
+                        self.data_dir,
+                        f"data_depth_annotated/{mode}",
+                        paths_map["gt"],
+                    )
+                    if os.path.exists(depth_path):
+                        break
+                else:
+                    raise ValueError(f"depth_path not found: {paths_map['gt']}")
         elif "data_" in rgb_path:
             image_path = os.path.join(self.data_dir, rgb_path)
             depth_path = os.path.join(
