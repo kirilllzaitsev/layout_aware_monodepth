@@ -201,8 +201,9 @@ def run(args):
     experiment = create_tracking_exp(args.exp_disabled)
     exp_dir = f"{cfg.exp_base_dir}/{experiment.name}"
     os.makedirs(exp_dir, exist_ok=True)
+    print(f"Experiment dir: {exp_dir}")
 
-    log_tags(args, experiment)
+    log_tags(args, experiment, cfg)
 
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     log_params_to_exp(
