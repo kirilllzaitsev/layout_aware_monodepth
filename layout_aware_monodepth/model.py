@@ -4,6 +4,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from alternet.models.alternet import AttentionBasicBlockB
 
+encoder_to_last_channels_in_level = {
+    "timm-mobilenetv3_large_100": [16, 24, 40, 80, 112]
+}
+
 
 class DepthModel(nn.Module):
     # initializers
@@ -37,28 +41,37 @@ class DepthModel(nn.Module):
 
         self.use_attn = use_attn
         self.use_extra_conv = use_extra_conv
-
-        if use_attn:
-            self.attn_blocks = []
-            for x_dim in self.encoder.out_channels:
-                self.attn_blocks.append(
-                    AttentionBasicBlockB(x_dim, x_dim, stride=1, heads=4, window_size=4)
-                )
-
-            self.attn_blocks = nn.ModuleList(self.attn_blocks)
-        elif use_extra_conv:
-            self.attn_blocks = []
-            for x_dim in self.encoder.out_channels:
-                self.attn_blocks.append(
-                    nn.Sequential(
+        if use_attn or use_extra_conv:
+            encoder_channel_spec = encoder_to_last_channels_in_level.get(encoder_name)
+            encoder_channel_spec_exists = encoder_channel_spec is not None
+            dummy_input = torch.randn(1, self.encoder.out_channels[1], 128, 128)
+            for block_idx in range(len(self.encoder.out_channels[1:])):
+                if encoder_channel_spec_exists:
+                    x_dim = encoder_channel_spec[block_idx]
+                else:
+                    dummy_input = self.encoder.model.blocks[block_idx](dummy_input)
+                    x_dim = dummy_input.shape[1]
+                if use_attn:
+                    block = AttentionBasicBlockB(
+                        x_dim,
+                        x_dim,
+                        stride=1,
+                        heads=4,
+                        window_size=4,
+                    )
+                else:
+                    block = nn.Sequential(
                         nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
                         nn.ReLU(inplace=True),
                         nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
                         nn.ReLU(inplace=True),
                     )
+
+                self.encoder.model.blocks[block_idx] = nn.Sequential(
+                    self.encoder.model.blocks[block_idx], block
                 )
 
-            self.attn_blocks = nn.ModuleList(self.attn_blocks)
+                print(f"{x_dim=}")
 
         self.decoder = model.decoder
         self.depth_head = model.segmentation_head
@@ -67,10 +80,6 @@ class DepthModel(nn.Module):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
 
         features = self.encoder(x)
-
-        if self.use_attn or self.use_extra_conv:
-            for i, feature in enumerate(features):
-                features[i] = self.attn_blocks[i](feature)
 
         decoder_output = self.decoder(*features)
 
