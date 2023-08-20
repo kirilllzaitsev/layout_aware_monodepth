@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from alternet.models.alternet import AttentionBasicBlockB
 
 encoder_to_last_channels_in_level = {
-    "timm-mobilenetv3_large_100": [16, 24, 40, 80, 112]
+    "timm-mobilenetv3_large_100": [16, 24, 40, 80, 112, 160, 960]
 }
 
 
@@ -43,15 +43,18 @@ class DepthModel(nn.Module):
         self.use_extra_conv = use_extra_conv
         if use_attn or use_extra_conv:
             encoder_channel_spec = encoder_to_last_channels_in_level.get(encoder_name)
-            encoder_channel_spec_exists = encoder_channel_spec is not None
+            assert (
+                encoder_channel_spec is not None
+            ), f"Must provide encoder channel spec for {encoder_name=}"
             dummy_input = torch.randn(1, self.encoder.out_channels[1], 128, 128)
-            for block_idx in range(len(self.encoder.out_channels[1:])):
-                if encoder_channel_spec_exists:
-                    x_dim = encoder_channel_spec[block_idx]
-                else:
-                    dummy_input = self.encoder.model.blocks[block_idx](dummy_input)
-                    x_dim = dummy_input.shape[1]
-                    print(f"{x_dim=}")
+            for block_idx in range(len(encoder_channel_spec)):
+                x_dim = encoder_channel_spec[block_idx]
+                # if encoder_channel_spec_exists:
+                #     x_dim = encoder_channel_spec[block_idx]
+                # else:
+                #     dummy_input = self.encoder.model.blocks[block_idx](dummy_input)
+                #     x_dim = dummy_input.shape[1]
+                #     print(f"{x_dim=}")
                 if use_attn:
                     block = AttentionBasicBlockB(
                         x_dim,
