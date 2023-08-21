@@ -101,6 +101,14 @@ class MonodepthDataset(Dataset):
         elif self.args.line_op in ["concat", "concat_binary"]:
             image = self.concat_lines(image)
 
+        if self.args.use_grayscale_img:
+            img = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+            img = np.expand_dims(img, axis=2)
+            if image.shape[2] > 3:
+                image = np.stack([img, image[..., 3:]], axis=2).squeeze()
+            else:
+                image = img
+
         sample = {
             "image": image,
             "depth": depth_gt,
