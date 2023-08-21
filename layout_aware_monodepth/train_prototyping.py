@@ -190,6 +190,7 @@ def run(args):
         else img_channels,
         use_attn=args.use_attn,
         use_extra_conv=args.use_extra_conv,
+        encoder_name=args.backbone,
     )
     model.to(device)
 
@@ -382,6 +383,7 @@ def main():
     parser.add_argument("--use_grayscale_img", action="store_true")
     parser.add_argument("--use_eigen", action="store_true")
     parser.add_argument("--do_save_model", action="store_true")
+    parser.add_argument("--backbone", default="timm-mobilenetv3_large_100")
     parser.add_argument("--num_epochs", type=int, default=20)
     parser.add_argument("--save_freq_epochs", type=int, default=2)
     parser.add_argument("--vis_freq_epochs", type=int, default=1)
