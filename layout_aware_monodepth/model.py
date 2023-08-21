@@ -5,7 +5,8 @@ import torch.nn.functional as F
 from alternet.models.alternet import AttentionBasicBlockB
 
 encoder_to_last_channels_in_level = {
-    "timm-mobilenetv3_large_100": [16, 24, 40, 80, 112, 160, 960]
+    "timm-mobilenetv3_large_100": [16, 24, 40, 80, 112, 160, 960],
+    "resnet18": [64, 128, 256, 512],
 }
 
 
@@ -26,7 +27,7 @@ class DepthModel(nn.Module):
         decoder_channels = [decoder_first_channel]
         for i in range(1, 5):
             decoder_channels.append(decoder_first_channel // (2**i))
-
+        self.encoder_name = encoder_name
         model = smp.Unet(
             encoder_name=encoder_name,
             encoder_weights=encoder_weights,
@@ -56,17 +57,23 @@ class DepthModel(nn.Module):
                         heads=4,
                         window_size=4,
                     )
-                else:
+                elif use_extra_conv:
                     block = nn.Sequential(
                         nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
                         nn.ReLU(inplace=True),
                         nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
                         nn.ReLU(inplace=True),
                     )
-
-                self.encoder.model.blocks[block_idx] = nn.Sequential(
-                    self.encoder.model.blocks[block_idx], block
-                )
+                else:
+                    block = nn.Identity()
+                if self.encoder_name == "timm-mobilenetv3_large_100":
+                    self.encoder.model.blocks[block_idx] = nn.Sequential(
+                        self.encoder.model.blocks[block_idx], block
+                    )
+                elif self.encoder_name == "resnet18":
+                    layer = getattr(self.encoder, f"layer{block_idx+1}")
+                    layer = nn.Sequential(layer, block)
+                    setattr(self.encoder, f"layer{block_idx+1}", layer)
 
         self.decoder = model.decoder
         self.depth_head = model.segmentation_head
