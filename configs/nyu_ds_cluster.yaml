@@ -1,2 +1,2 @@
-batch_size: 14
+batch_size: 16
 data_path: /cluster/scratch/kzaitse/nyu-depth
