@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 
+import matplotlib.pyplot as plt
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
@@ -182,8 +183,11 @@ def run(args):
         ]
         benchmark_batch = train_ds.load_benchmark_batch(benchmark_paths)
 
+    img_channels = 1 if args.use_grayscale_img else 3
     model = DepthModel(
-        in_channels=4 if args.line_op in ["concat", "concat_binary"] else 3,
+        in_channels=img_channels + 1
+        if args.line_op in ["concat", "concat_binary"]
+        else img_channels,
         use_attn=args.use_attn,
         use_extra_conv=args.use_extra_conv,
     )
@@ -314,6 +318,7 @@ def run(args):
                 fig,
                 step=epoch,
             )
+            plt.close()
 
             print(f"\nBENCHMARK metrics:\n{benchmark_metrics_avg}\n")
 
@@ -374,6 +379,7 @@ def main():
     parser.add_argument("--exp_disabled", action="store_true")
     parser.add_argument("--use_attn", action="store_true")
     parser.add_argument("--use_extra_conv", action="store_true")
+    parser.add_argument("--use_grayscale_img", action="store_true")
     parser.add_argument("--use_eigen", action="store_true")
     parser.add_argument("--do_save_model", action="store_true")
     parser.add_argument("--num_epochs", type=int, default=20)
