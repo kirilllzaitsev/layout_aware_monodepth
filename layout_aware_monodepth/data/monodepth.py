@@ -219,7 +219,8 @@ class MonodepthDataset(Dataset):
 
 class KITTIDataset(MonodepthDataset):
     max_depth = 80.0
-    target_shape = (640, 192)
+    # target_shape = (640, 192)
+    target_shape = (768, 256)
 
     def __init__(self, *args_, **kwargs):
         super().__init__(*args_, **kwargs)
