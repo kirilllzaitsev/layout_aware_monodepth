@@ -1,9 +1,13 @@
+import argparse
 import os
 import random
 
 import comet_ml
 import numpy as np
 import torch
+import yaml
+
+from layout_aware_monodepth.cfg import cfg
 
 
 def create_tracking_exp(exp_disabled) -> comet_ml.Experiment:
@@ -83,3 +87,16 @@ def load_model(path, model, optimizer):
     model.load_state_dict(checkpoint["model_state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
     return model, optimizer
+
+
+def load_config(ds_name):
+    config_path = f"../configs/{ds_name}_ds.yaml"
+
+    primary_ds_config = yaml.safe_load(open(config_path))
+    if cfg.is_cluster:
+        aux_ds_config = yaml.safe_load(open(f"../configs/{ds_name}_ds_cluster.yaml"))
+        ds_config = {**primary_ds_config, **aux_ds_config}
+    else:
+        ds_config = primary_ds_config
+    ds_args = argparse.Namespace(**ds_config)
+    return ds_args

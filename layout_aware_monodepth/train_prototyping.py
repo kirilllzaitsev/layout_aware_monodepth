@@ -26,6 +26,7 @@ from layout_aware_monodepth.metrics import RunningAverageDict, calc_metrics
 from layout_aware_monodepth.model import DepthModel
 from layout_aware_monodepth.pipeline_utils import (
     create_tracking_exp,
+    load_config,
     log_tags,
     save_model,
     setup_env,
@@ -93,15 +94,7 @@ class Trainer:
 def run(args):
     setup_env()
 
-    config_path = f"../configs/{args.ds}_ds.yaml"
-
-    primary_ds_config = yaml.safe_load(open(config_path))
-    if cfg.is_cluster:
-        aux_ds_config = yaml.safe_load(open(f"../configs/{args.ds}_ds_cluster.yaml"))
-        ds_config = {**primary_ds_config, **aux_ds_config}
-    else:
-        ds_config = primary_ds_config
-    ds_args = argparse.Namespace(**ds_config)
+    ds_args = load_config(args.ds)
     non_overridden_ds_args = []
     for k, v in vars(args).items():
         if hasattr(ds_args, k):
