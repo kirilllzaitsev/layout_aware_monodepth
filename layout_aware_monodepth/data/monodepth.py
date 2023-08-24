@@ -325,6 +325,11 @@ class KITTIDataset(MonodepthDataset):
     def load_rgb(self, path):
         return Image.open(path)
 
+    def load_line_mask(self, paths_map):
+        img_path = Path(self.data_dir) / "data_lines" / paths_map["rgb"]
+        mask_path = img_path.parent / f"{img_path.stem}.npy"
+        lines = np.load(mask_path)
+        return lines
 
 class NYUv2Dataset(MonodepthDataset):
     max_depth = 10.0
