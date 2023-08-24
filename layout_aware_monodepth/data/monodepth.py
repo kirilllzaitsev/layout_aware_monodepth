@@ -46,7 +46,7 @@ class MonodepthDataset(Dataset):
         self.filenames = []
         self.data_dir = self.args.data_path
 
-        if self.args.line_op is not None:
+        if self.args.line_op is not None and not self.args.do_load_lines:
             from layout_aware_monodepth.data.tmp import load_deeplsd
 
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -78,7 +78,10 @@ class MonodepthDataset(Dataset):
         depths = []
         for paths_map in sample_paths:
             image, depth_gt = self.load_img_and_depth(paths_map)
-            sample = self.prep_train_sample(image, depth_gt, do_augment=False)
+            lines = self.load_line_mask(paths_map) if self.args.do_load_lines else None
+            sample = self.prep_train_sample(
+                image, depth_gt, do_augment=False, lines=lines
+            )
 
             sample["image"] = test_transform(sample["image"])
 
@@ -95,6 +98,11 @@ class MonodepthDataset(Dataset):
         image = np.asarray(image, dtype=np.float32) / 255.0
         depth_gt = np.asarray(depth_gt, dtype=np.float32)
 
+        if self.args.line_op == "overlay":
+            image = self.overlay_lines(image)
+        elif self.args.line_op in ["concat", "concat_binary"]:
+            image = self.concat_lines(image, lines=lines)
+
         image, depth_gt = resize_inputs(image, depth_gt, target_shape=self.target_shape)
 
         depth_gt = np.expand_dims(depth_gt, axis=2)
@@ -105,11 +113,6 @@ class MonodepthDataset(Dataset):
         depth_gt = self.convert_depth_to_meters(depth_gt)
         depth_gt = np.clip(depth_gt, 0, self.max_depth)
         depth_gt /= self.max_depth
-
-        if self.args.line_op == "overlay":
-            image = self.overlay_lines(image)
-        elif self.args.line_op in ["concat", "concat_binary"]:
-            image = self.concat_lines(image, lines=lines)
 
         if self.args.use_grayscale_img:
             img = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
@@ -299,12 +302,6 @@ class KITTIDataset(MonodepthDataset):
 
         return self.load_img_and_depth_from_path(image_path, depth_path)
 
-    def load_line_mask(self, paths_map):
-        img_path = Path(paths_map["filename"])
-        mask_path = img_path.parent / "line_mask" / f"{img_path.stem}.npy"
-        lines = np.load(mask_path)
-        return lines
-
     def from_local_path_to_cluster(self, path):
         # example: train/2011_09_26_drive_0002_sync
         sync_folder = path[path.find("/") + 1 :]
@@ -380,3 +377,9 @@ class NYUv2Dataset(MonodepthDataset):
         if self.do_crop:
             image = image.crop((43, 45, 608, 472))
         return image
+
+    def load_line_mask(self, paths_map):
+        img_path = Path(self.data_dir) / paths_map["filename"]
+        mask_path = img_path.parent / "line_masks" / f"{img_path.stem}.npy"
+        lines = np.load(mask_path)
+        return lines
