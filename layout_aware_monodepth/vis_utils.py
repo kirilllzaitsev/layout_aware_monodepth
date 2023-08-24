@@ -30,7 +30,11 @@ def plot_samples_and_preds(
     )
     for i in range(batch_size):
         if with_lines_concat:
-            img = batch["image"][i][:3].permute(1, 2, 0)
+            if batch["image"][i].shape[0] == 4:
+                img = batch["image"][i][:3]
+            else:
+                img = batch["image"][i][:1]
+            img = img.permute(1, 2, 0)
         else:
             img = batch["image"][i].permute(1, 2, 0)
         in_depth = batch["depth"][i]
