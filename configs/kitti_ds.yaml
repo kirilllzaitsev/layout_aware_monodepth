@@ -18,3 +18,4 @@ line_op: null
 line_filter: null
 
 use_grayscale_img: false
+do_load_lines: false
