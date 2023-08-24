@@ -2,7 +2,7 @@ import json
 import os
 import random
 import re
-from functools import lru_cache
+from pathlib import Path
 
 import cv2
 import h5py
@@ -55,13 +55,23 @@ class MonodepthDataset(Dataset):
 
     def __getitem__(self, idx):
         image, depth_gt = self.load_img_and_depth(self.filenames[idx])
+        lines = (
+            self.load_line_mask(self.filenames[idx])
+            if self.args.do_load_lines
+            else None
+        )
 
-        sample = self.prep_train_sample(image, depth_gt, do_augment=self.do_augment)
+        sample = self.prep_train_sample(
+            image, depth_gt, do_augment=self.do_augment, lines=lines
+        )
 
         if self.transform:
             sample["image"] = self.transform(sample["image"])
 
         return sample
+
+    def load_line_mask(self, paths_map):
+        raise NotImplementedError
 
     def load_benchmark_batch(self, sample_paths):
         images = []
@@ -76,7 +86,7 @@ class MonodepthDataset(Dataset):
             depths.append(torch.from_numpy(sample["depth"]))
         return {"image": torch.stack(images), "depth": torch.stack(depths)}
 
-    def prep_train_sample(self, image, depth_gt, do_augment=False):
+    def prep_train_sample(self, image, depth_gt, do_augment=False, lines=None):
         if self.args.do_random_rotate and do_augment:
             random_angle = (random.random() - 0.5) * 2 * self.args.degree
             image = rotate_image(image, random_angle)
@@ -99,7 +109,7 @@ class MonodepthDataset(Dataset):
         if self.args.line_op == "overlay":
             image = self.overlay_lines(image)
         elif self.args.line_op in ["concat", "concat_binary"]:
-            image = self.concat_lines(image)
+            image = self.concat_lines(image, lines=lines)
 
         if self.args.use_grayscale_img:
             img = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
@@ -154,9 +164,15 @@ class MonodepthDataset(Dataset):
 
         return overlay
 
-    def concat_lines(self, image):
-        out = self.run_line_detector(image)
+    def concat_lines(self, image, lines=None):
+        if lines is None:
+            out = self.run_line_detector(image)
 
+            lines = self.get_line_mask(image, out)
+        lines = np.concatenate((image, lines), axis=2)
+        return lines
+
+    def get_line_mask(self, image, out):
         if self.args.line_op == "concat":
             df_norm = out["df_norm"][0].cpu().numpy()
 
@@ -178,7 +194,6 @@ class MonodepthDataset(Dataset):
             raise NotImplementedError
 
         concat = concat.astype(np.float32)
-        concat = np.concatenate((image, concat), axis=2)
         return concat
 
     def filter_lines_by_vp(self, lines, vp_labels):
@@ -283,6 +298,12 @@ class KITTIDataset(MonodepthDataset):
             )
 
         return self.load_img_and_depth_from_path(image_path, depth_path)
+
+    def load_line_mask(self, paths_map):
+        img_path = Path(paths_map["filename"])
+        mask_path = img_path.parent / "line_mask" / f"{img_path.stem}.npy"
+        lines = np.load(mask_path)
+        return lines
 
     def from_local_path_to_cluster(self, path):
         # example: train/2011_09_26_drive_0002_sync
