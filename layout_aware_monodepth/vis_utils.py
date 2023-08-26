@@ -37,8 +37,8 @@ def plot_samples_and_preds(
             img = img.permute(1, 2, 0)
         else:
             img = batch["image"][i].permute(1, 2, 0)
-        in_depth = batch["depth"][i]
-        d = preds[i]
+        in_depth = batch["depth"][i] * max_depth
+        d = preds[i] * max_depth
 
         if batch_size == 1:
             ax_0 = axs[0]
@@ -58,17 +58,17 @@ def plot_samples_and_preds(
                 ax_4 = axs[i, 4]
 
         ax_0.imshow(img)
-        ax_1.imshow(in_depth * max_depth)
-        ax_2.imshow(d * max_depth)
+        ax_1.imshow(in_depth)
+        ax_2.imshow(d)
         axs_row = [ax_0, ax_1, ax_2]
 
         if with_colorbar:
             for ax in [ax_1, ax_2]:
-                attach_colorbar(ax, ax.images[0], vmax=1 * max_depth)
+                attach_colorbar(ax, ax.images[0], vmax=in_depth.max())
 
         if with_depth_diff:
             axs_row.append(ax_3)
-            diff = np.abs(in_depth - d) * max_depth
+            diff = np.abs(in_depth - d)
             ax_3.imshow(diff, cmap="magma")
             attach_colorbar(ax_3, ax_3.images[0], vmax=None)
 
