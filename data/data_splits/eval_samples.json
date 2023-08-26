@@ -1,20 +1,20 @@
 {
     "kitti": [
         {
-            "rgb": "data_depth_selection/val_selection_cropped/image/2011_09_26_drive_0002_sync_image_0000000005_image_02.png",
-            "gt": "data_depth_selection/val_selection_cropped/groundtruth_depth/2011_09_26_drive_0002_sync_groundtruth_depth_0000000005_image_02.png"
+            "rgb": "2011_09_26/2011_09_26_drive_0002_sync/image_02/data/0000000069.png",
+            "gt": "2011_09_26_drive_0002_sync/proj_depth/groundtruth/image_02/0000000069.png"
         },
         {
-            "rgb": "data_depth_selection/val_selection_cropped/image/2011_09_26_drive_0023_sync_image_0000000206_image_02.png",
-            "gt": "data_depth_selection/val_selection_cropped/groundtruth_depth/2011_09_26_drive_0023_sync_groundtruth_depth_0000000206_image_02.png"
+            "rgb": "2011_09_26/2011_09_26_drive_0052_sync/image_02/data/0000000028.png",
+            "gt": "2011_09_26_drive_0052_sync/proj_depth/groundtruth/image_02/0000000028.png"
         },
         {
-            "rgb": "data_depth_selection/val_selection_cropped/image/2011_09_26_drive_0036_sync_image_0000000341_image_02.png",
-            "gt": "data_depth_selection/val_selection_cropped/groundtruth_depth/2011_09_26_drive_0036_sync_groundtruth_depth_0000000341_image_02.png"
+            "rgb": "2011_09_26/2011_09_26_drive_0086_sync/image_02/data/0000000385.png",
+            "gt": "2011_09_26_drive_0086_sync/proj_depth/groundtruth/image_02/0000000385.png"
         },
         {
-            "rgb": "data_depth_selection/val_selection_cropped/image/2011_09_26_drive_0095_sync_image_0000000254_image_02.png",
-            "gt": "data_depth_selection/val_selection_cropped/groundtruth_depth/2011_09_26_drive_0095_sync_groundtruth_depth_0000000254_image_02.png"
+            "rgb": "2011_10_03/2011_10_03_drive_0047_sync/image_02/data/0000000096.png",
+            "gt": "2011_10_03_drive_0047_sync/proj_depth/groundtruth/image_02/0000000096.png"
         }
     ],
     "nyu": [
