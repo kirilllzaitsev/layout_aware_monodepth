@@ -359,8 +359,8 @@ class NYUv2Dataset(MonodepthDataset):
         else:
             depth_gt = dep_h5.squeeze()
         depth_gt = Image.fromarray(depth_gt.astype("float32"), mode="F")
-        if self.do_crop:
-            depth_gt = depth_gt.crop((43, 45, 608, 472))
+
+        image, depth_gt = self.crop(image, depth_gt)
 
         return image, depth_gt
 
@@ -380,9 +380,12 @@ class NYUv2Dataset(MonodepthDataset):
     def _load_rgb(self, f):
         rgb_h5 = f["rgb"][:].transpose(1, 2, 0)
         image = Image.fromarray(rgb_h5, mode="RGB")
-        if self.do_crop:
-            image = image.crop((43, 45, 608, 472))
         return image
+    
+    def crop(self, image, depth_gt):
+        image = image.crop((43, 45, 608, 472))
+        depth_gt = depth_gt.crop((43, 45, 608, 472))
+        return image, depth_gt
 
     def load_line_mask(self, paths_map):
         img_path = Path(self.data_dir) / paths_map["filename"]
