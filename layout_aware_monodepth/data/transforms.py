@@ -8,18 +8,12 @@ from PIL import Image
 from torchvision import transforms
 
 
-def kb_crop(image: Image.Image, depth_gt=None):
+def kb_crop(image: Image.Image):
     height = image.height
     width = image.width
     top_margin = int(height - 352)
     left_margin = int((width - 1216) / 2)
     image = image.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
-
-    if depth_gt is not None:
-        depth_gt = depth_gt.crop(
-            (left_margin, top_margin, left_margin + 1216, top_margin + 352)
-        )
-        return image, depth_gt
 
     return image
 

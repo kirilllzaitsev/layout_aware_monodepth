@@ -315,7 +315,8 @@ class KITTIDataset(MonodepthDataset):
         depth_gt = self.load_rgb(depth_path)
 
         if self.args.do_kb_crop is True:
-            image, depth_gt = kb_crop(image, depth_gt)
+            image = kb_crop(image)
+            depth_gt = kb_crop(depth_gt)
         return image, depth_gt
 
     def convert_depth_to_meters(self, depth_gt):
