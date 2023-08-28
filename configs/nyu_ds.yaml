@@ -13,3 +13,5 @@ line_filter: null
 
 use_grayscale_img: false
 do_load_lines: false
+
+do_crop: true

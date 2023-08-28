@@ -1,5 +1,5 @@
 ds_name: kitti
-batch_size: 16
+batch_size: 8
 
 split: eigen
 # split: null
@@ -10,7 +10,7 @@ filenames_file: ../data/data_splits/kitti_dc.json
 input_height: 352
 input_width: 1216
 
-do_kb_crop: true
+do_crop: true
 do_random_rotate: false
 degree: 2.5
 
