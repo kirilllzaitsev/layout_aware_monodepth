@@ -21,7 +21,7 @@ from layout_aware_monodepth.data.transforms import (
 )
 from layout_aware_monodepth.extras import EarlyStopper
 from layout_aware_monodepth.logging_utils import log_metric, log_params_to_exp
-from layout_aware_monodepth.losses import MSELoss, SILogLoss
+from layout_aware_monodepth.losses import MAELoss, MSELoss, SILogLoss
 from layout_aware_monodepth.metrics import RunningAverageDict, calc_metrics
 from layout_aware_monodepth.model import DepthModel
 from layout_aware_monodepth.pipeline_utils import (
@@ -98,6 +98,8 @@ def run(args):
     non_overridden_ds_args = []
     for k, v in vars(args).items():
         if hasattr(ds_args, k):
+            if k in ['batch_size', 'lr'] and v is None:
+                continue
             setattr(ds_args, k, v)
         else:
             non_overridden_ds_args.append(k)
@@ -146,7 +148,7 @@ def run(args):
                 range(int(len(ds_subset) * (1 - test_ds_share)), len(ds_subset)),
             )
             test_subset.dataset.transform = test_transform
-        num_workers = 0
+        num_workers = 8
 
         train_ds_len = int(len(ds_subset) * train_ds_share)
         val_ds_len = int(len(ds_subset) * val_ds_share)
@@ -184,10 +186,16 @@ def run(args):
         use_attn=args.use_attn,
         use_extra_conv=args.use_extra_conv,
         encoder_name=args.backbone,
+        do_insert_after=not args.use_attn_before_se,
     )
     model.to(device)
 
-    lr = 1e-3
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    # if args.backbone == "timm-mobilenetv3_large_100":
+    if num_params > 1e7:
+        lr = 1e-3
+    else:
+        lr = 5e-4
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = SILogLoss()
     early_stopper = EarlyStopper(patience=args.num_epochs // 5, min_delta=1e-2)
@@ -207,7 +215,6 @@ def run(args):
 
     log_tags(args, experiment, cfg)
 
-    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     log_params_to_exp(
         experiment,
         cfg.params(),
@@ -369,6 +376,7 @@ def main():
     parser.add_argument(
         "--line_filter", choices=["length", "vanishing_point", "length,vanishing_point"]
     )
+    parser.add_argument("--use_attn_before_se", action="store_true")
     parser.add_argument("--use_single_sample", action="store_true")
     parser.add_argument("--exp_disabled", action="store_true")
     parser.add_argument("--use_attn", action="store_true")
@@ -389,9 +397,15 @@ def main():
         default=1e-3,
     )
     parser.add_argument("--max_depth_eval", type=float, default=10)
+    parser.add_argument("--batch_size", type=int)
+    # parser.add_argument("--lr", type=float, default=1e-3)
 
     parser.add_argument("--exp_tags", nargs="*", default=[])
     args = parser.parse_args()
+    if args.use_attn_before_se:
+        assert (
+            args.backbone == "timm-mobilenetv3_large_100"
+        ), "No SE blocks in resnet backbone"
     with open("./recent_train_args.yaml", "w") as f:
         yaml.dump(vars(args), f, default_flow_style=False)
     run(args)
