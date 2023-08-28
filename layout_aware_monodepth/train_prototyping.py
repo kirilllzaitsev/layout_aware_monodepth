@@ -198,7 +198,7 @@ def run(args):
         lr = 5e-4
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = SILogLoss()
-    early_stopper = EarlyStopper(patience=args.num_epochs // 5, min_delta=1e-2)
+    early_stopper = EarlyStopper(patience=args.num_epochs // 5, min_delta=1e-2, warm_up=3)
     scheduler = optim.lr_scheduler.LinearLR(
         optimizer,
         start_factor=1.0,
