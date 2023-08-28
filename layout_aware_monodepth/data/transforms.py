@@ -8,12 +8,11 @@ from PIL import Image
 from torchvision import transforms
 
 
-def kb_crop(image: Image.Image):
-    height = image.height
-    width = image.width
+def kb_crop(image: np.ndarray):
+    height, width = image.shape[:2]
     top_margin = int(height - 352)
     left_margin = int((width - 1216) / 2)
-    image = image.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
+    image = image[top_margin : top_margin + 352, left_margin : left_margin + 1216]
 
     return image
 
