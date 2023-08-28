@@ -103,6 +103,9 @@ class MonodepthDataset(Dataset):
         elif self.args.line_op in ["concat", "concat_binary"]:
             image = self.concat_lines(image, lines=lines)
 
+        if self.args.do_crop:
+            image, depth_gt = self.crop(image, depth_gt)
+
         image, depth_gt = resize_inputs(image, depth_gt, target_shape=self.target_shape)
 
         depth_gt = np.expand_dims(depth_gt, axis=2)
@@ -231,6 +234,9 @@ class MonodepthDataset(Dataset):
     def load_rgb(self, path):
         raise NotImplementedError
 
+    def crop(self, image, depth_gt):
+        raise NotImplementedError
+
     def __len__(self):
         return len(self.filenames)
 
@@ -314,9 +320,11 @@ class KITTIDataset(MonodepthDataset):
         image = self.load_rgb(image_path)
         depth_gt = self.load_rgb(depth_path)
 
-        if self.args.do_kb_crop is True:
-            image = kb_crop(image)
-            depth_gt = kb_crop(depth_gt)
+        return image, depth_gt
+
+    def crop(self, image, depth_gt):
+        image = kb_crop(image)
+        depth_gt = kb_crop(depth_gt)
         return image, depth_gt
 
     def convert_depth_to_meters(self, depth_gt):
@@ -360,8 +368,6 @@ class NYUv2Dataset(MonodepthDataset):
             depth_gt = dep_h5.squeeze()
         depth_gt = Image.fromarray(depth_gt.astype("float32"), mode="F")
 
-        image, depth_gt = self.crop(image, depth_gt)
-
         return image, depth_gt
 
     def convert_depth_to_meters(self, depth_gt):
@@ -383,8 +389,9 @@ class NYUv2Dataset(MonodepthDataset):
         return image
     
     def crop(self, image, depth_gt):
-        image = image.crop((43, 45, 608, 472))
-        depth_gt = depth_gt.crop((43, 45, 608, 472))
+        # image = image.crop((43, 45, 608, 472))
+        image = image[43:608, 45:472]
+        depth_gt = depth_gt[43:608, 45:472]
         return image, depth_gt
 
     def load_line_mask(self, paths_map):
