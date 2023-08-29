@@ -215,6 +215,10 @@ def run(args):
 
     log_tags(args, experiment, cfg)
 
+    with open(f"{exp_dir}/train_args.yaml", "w") as f:
+        yaml.dump({"args": vars(args), "ds_args": vars(ds_args)}, f, default_flow_style=False)
+    experiment.log_asset("train_args.yaml")
+
     log_params_to_exp(
         experiment,
         cfg.params(),
@@ -406,8 +410,6 @@ def main():
         assert (
             args.backbone == "timm-mobilenetv3_large_100"
         ), "No SE blocks in resnet backbone"
-    with open("./recent_train_args.yaml", "w") as f:
-        yaml.dump(vars(args), f, default_flow_style=False)
     run(args)
 
 
