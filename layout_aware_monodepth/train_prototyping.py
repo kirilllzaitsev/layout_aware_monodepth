@@ -98,7 +98,7 @@ def run(args):
     non_overridden_ds_args = []
     for k, v in vars(args).items():
         if hasattr(ds_args, k):
-            if k in ['batch_size', 'lr'] and v is None:
+            if k in ["batch_size", "lr"] and v is None:
                 continue
             setattr(ds_args, k, v)
         else:
@@ -198,7 +198,9 @@ def run(args):
         lr = 5e-4
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = SILogLoss()
-    early_stopper = EarlyStopper(patience=args.num_epochs // 5, min_delta=1e-2, warm_up=3)
+    early_stopper = EarlyStopper(
+        patience=args.num_epochs // 5, min_delta=1e-2, warm_up=3
+    )
     scheduler = optim.lr_scheduler.LinearLR(
         optimizer,
         start_factor=1.0,
@@ -215,9 +217,16 @@ def run(args):
 
     log_tags(args, experiment, cfg)
 
-    with open(f"{exp_dir}/train_args.yaml", "w") as f:
-        yaml.dump({"args": vars(args), "ds_args": vars(ds_args)}, f, default_flow_style=False)
-    experiment.log_asset("train_args.yaml")
+    train_args_path = f"{exp_dir}/train_args.yaml"
+    with open(train_args_path, "w") as f:
+        yaml.dump(
+            {"args": vars(args), "ds_args": vars(ds_args)}, f, default_flow_style=False
+        )
+    experiment.log_asset(train_args_path)
+    os.symlink(
+        train_args_path,
+        "./train_args_latest.yaml",
+    )
 
     log_params_to_exp(
         experiment,
