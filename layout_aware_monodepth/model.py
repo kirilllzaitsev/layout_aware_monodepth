@@ -108,6 +108,12 @@ class DepthModel(nn.Module):
                                 nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
                                 nn.ReLU(inplace=True),
                             )
+                            if block_idx > 4:
+                                block = nn.Sequential(
+                                    block,
+                                    nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
+                                    nn.ReLU(inplace=True),
+                                )
                         else:
                             block = nn.Identity()
                         if self.encoder_name == "timm-mobilenetv3_large_100":
