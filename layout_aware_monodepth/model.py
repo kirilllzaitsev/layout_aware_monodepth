@@ -120,10 +120,10 @@ class DepthModel(nn.Module):
                             base_block = model.encoder.model.blocks[block_idx][
                                 subblock_idx
                             ]
-                            new_se_block = nn.Sequential(
-                                block,
-                                base_block.se,
-                            )
+                            new_se_block = nn.Sequential(OrderedDict([
+                                ("attn", block),
+                                ("se", base_block.se),
+                            ]))
                             base_block.se = new_se_block
 
         self.decoder = model.decoder
