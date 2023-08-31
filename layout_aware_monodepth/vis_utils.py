@@ -109,7 +109,7 @@ def plot_batch(b):
         axs[1].set_title("depth")
         for ax in axs[1:]:
             ax.axis("off")
-        plt.show()
+    plt.show()
 
 
 def plot_attention(att_mat, img_size):

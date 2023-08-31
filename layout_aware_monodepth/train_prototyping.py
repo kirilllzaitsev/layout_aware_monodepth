@@ -187,6 +187,7 @@ def run(args):
         use_extra_conv=args.use_extra_conv,
         encoder_name=args.backbone,
         do_insert_after=not args.use_attn_before_se,
+        decoder_attention_type=args.decoder_attention_type,
     )
     model.to(device)
 
@@ -223,6 +224,7 @@ def run(args):
             {"args": vars(args), "ds_args": vars(ds_args)}, f, default_flow_style=False
         )
     experiment.log_asset(train_args_path)
+    os.remove("./train_args_latest.yaml")
     os.symlink(
         train_args_path,
         "./train_args_latest.yaml",
@@ -399,6 +401,7 @@ def main():
     parser.add_argument("--do_save_model", action="store_true")
     parser.add_argument("--not_load_lines", dest="do_load_lines", action="store_false")
     parser.add_argument("--backbone", default="timm-mobilenetv3_large_100")
+    parser.add_argument("--decoder_attention_type", default=None, choices=["scse"])
     parser.add_argument("--num_epochs", type=int, default=20)
     parser.add_argument("--save_freq_epochs", type=int, default=2)
     parser.add_argument("--vis_freq_epochs", type=int, default=1)
