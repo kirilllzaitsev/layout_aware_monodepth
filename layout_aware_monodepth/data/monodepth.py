@@ -26,7 +26,6 @@ from layout_aware_monodepth.data.transforms import (
 
 class MonodepthDataset(Dataset):
     max_depth = None
-    target_shape = None
 
     def __init__(
         self,
@@ -42,6 +41,7 @@ class MonodepthDataset(Dataset):
         self.split = split
         self.transform = transform
         self.do_augment = do_augment
+        self.target_shape = args.target_shape
         self.to_tensor = ToTensor
         self.filenames = []
         self.data_dir = self.args.data_path
@@ -243,8 +243,6 @@ class MonodepthDataset(Dataset):
 
 class KITTIDataset(MonodepthDataset):
     max_depth = 80.0
-    # target_shape = (640, 192)
-    target_shape = (768, 256)
 
     def __init__(self, *args_, **kwargs):
         super().__init__(*args_, **kwargs)
@@ -340,11 +338,17 @@ class KITTIDataset(MonodepthDataset):
         lines = np.load(mask_path)
         return lines
 
+
 class NYUv2Dataset(MonodepthDataset):
     max_depth = 10.0
-    target_shape = (256, 256)
 
-    def __init__(self, *args_, do_interpolate_depth=False, do_crop=True, **kwargs):
+    def __init__(
+        self,
+        *args_,
+        do_interpolate_depth=False,
+        do_crop=True,
+        **kwargs,
+    ):
         super().__init__(*args_, **kwargs)
         self.do_interpolate_depth = do_interpolate_depth
         self.do_crop = do_crop
@@ -387,7 +391,7 @@ class NYUv2Dataset(MonodepthDataset):
         rgb_h5 = f["rgb"][:].transpose(1, 2, 0)
         image = Image.fromarray(rgb_h5, mode="RGB")
         return image
-    
+
     def crop(self, image, depth_gt):
         # image = image.crop((43, 45, 608, 472))
         image = image[43:608, 45:472]
