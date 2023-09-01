@@ -19,6 +19,7 @@ class DepthModel(nn.Module):
         decoder_activation="sigmoid",
         decoder_attention_type=None,
         decoder_first_channel=256,
+        window_size=4,
         do_insert_after=True,
         in_channels=3,
         use_attn=False,
@@ -60,7 +61,7 @@ class DepthModel(nn.Module):
                             x_dim,
                             stride=1,
                             heads=4,
-                            window_size=4,
+                            window_size=window_size,
                         )
                     elif use_extra_conv:
                         block = nn.Sequential(
@@ -99,7 +100,7 @@ class DepthModel(nn.Module):
                                 x_dim,
                                 stride=1,
                                 heads=4,
-                                window_size=4,
+                                window_size=window_size,
                             )
                         elif use_extra_conv:
                             block = nn.Sequential(
@@ -120,10 +121,10 @@ class DepthModel(nn.Module):
                             base_block = model.encoder.model.blocks[block_idx][
                                 subblock_idx
                             ]
-                            new_se_block = nn.Sequential(OrderedDict([
-                                ("attn", block),
-                                ("se", base_block.se),
-                            ]))
+                            new_se_block = nn.Sequential(
+                                block,
+                                base_block.se,
+                            )
                             base_block.se = new_se_block
 
         self.decoder = model.decoder
