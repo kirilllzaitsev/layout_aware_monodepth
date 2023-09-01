@@ -98,7 +98,8 @@ def run(args):
     non_overridden_ds_args = []
     for k, v in vars(args).items():
         if hasattr(ds_args, k):
-            if k in ["batch_size", "lr"] and v is None:
+            if v is None:
+                non_overridden_ds_args.append(k)
                 continue
             setattr(ds_args, k, v)
         else:
@@ -188,6 +189,7 @@ def run(args):
         encoder_name=args.backbone,
         do_insert_after=not args.use_attn_before_se,
         decoder_attention_type=args.decoder_attention_type,
+        window_size=7
     )
     model.to(device)
 
@@ -212,7 +214,7 @@ def run(args):
 
     epoch_bar = tqdm(total=args.num_epochs, leave=False)
     experiment = create_tracking_exp(args.exp_disabled)
-    exp_dir = f"{cfg.exp_base_dir}/{experiment.name}"
+    exp_dir = f"{cfg.exp_base_dir}/{experiment.name}" if cfg.is_cluster else f"{cfg.exp_base_dir}/exp"
     os.makedirs(exp_dir, exist_ok=True)
     print(f"Experiment dir: {exp_dir}")
 
@@ -406,6 +408,7 @@ def main():
     parser.add_argument("--save_freq_epochs", type=int, default=2)
     parser.add_argument("--vis_freq_epochs", type=int, default=1)
     parser.add_argument("--crop_type", choices=["garg", "eigen"], default=None)
+    parser.add_argument("--target_shape", nargs=2, type=int, default=None)
 
     parser.add_argument(
         "--min_depth_eval",
