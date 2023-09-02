@@ -56,13 +56,13 @@ class MonodepthDataset(Dataset):
     def __getitem__(self, idx):
         image, depth_gt = self.load_img_and_depth(self.filenames[idx])
         lines = (
-            self.load_line_mask(self.filenames[idx])
+            self.load_line_detector_res(self.filenames[idx])
             if self.args.do_load_lines
             else None
         )
 
         sample = self.prep_train_sample(
-            image, depth_gt, do_augment=self.do_augment, lines=lines
+            image, depth_gt, do_augment=self.do_augment, line_detector_res=lines
         )
 
         if self.transform:
@@ -70,7 +70,7 @@ class MonodepthDataset(Dataset):
 
         return sample
 
-    def load_line_mask(self, paths_map):
+    def load_line_detector_res(self, paths_map):
         raise NotImplementedError
 
     def load_benchmark_batch(self, sample_paths):
@@ -78,9 +78,13 @@ class MonodepthDataset(Dataset):
         depths = []
         for paths_map in sample_paths:
             image, depth_gt = self.load_img_and_depth(paths_map)
-            lines = self.load_line_mask(paths_map) if self.args.do_load_lines else None
+            line_detector_res = (
+                self.load_line_detector_res(paths_map)
+                if self.args.do_load_lines
+                else None
+            )
             sample = self.prep_train_sample(
-                image, depth_gt, do_augment=False, lines=lines
+                image, depth_gt, do_augment=False, line_detector_res=line_detector_res
             )
 
             sample["image"] = test_transform(sample["image"])
@@ -89,7 +93,9 @@ class MonodepthDataset(Dataset):
             depths.append(torch.from_numpy(sample["depth"]))
         return {"image": torch.stack(images), "depth": torch.stack(depths)}
 
-    def prep_train_sample(self, image, depth_gt, do_augment=False, lines=None):
+    def prep_train_sample(
+        self, image, depth_gt, do_augment=False, line_detector_res=None
+    ):
         if self.args.do_random_rotate and do_augment:
             random_angle = (random.random() - 0.5) * 2 * self.args.degree
             image = rotate_image(image, random_angle)
@@ -101,7 +107,7 @@ class MonodepthDataset(Dataset):
         if self.args.line_op == "overlay":
             image = self.overlay_lines(image)
         elif self.args.line_op in ["concat", "concat_binary"]:
-            image = self.concat_lines(image, lines=lines)
+            image = self.concat_lines(image, line_detector_res=line_detector_res)
 
         if self.args.do_crop:
             image, depth_gt = self.crop(image, depth_gt)
@@ -170,11 +176,11 @@ class MonodepthDataset(Dataset):
 
         return overlay
 
-    def concat_lines(self, image, lines=None):
-        if lines is None:
-            out = self.run_line_detector(image)
+    def concat_lines(self, image, line_detector_res=None):
+        if line_detector_res is None:
+            line_detector_res = self.run_line_detector(image)
 
-            lines = self.get_line_mask(image, out)
+        lines = self.get_line_mask(image, line_detector_res)
         lines = np.concatenate((image, lines), axis=2)
         return lines
 
@@ -191,6 +197,11 @@ class MonodepthDataset(Dataset):
                 if "vanishing_point" in self.args.line_filter:
                     lines = self.filter_lines_by_vp(lines, out["vp_labels"][0])
                 if "length" in self.args.line_filter:
+                    lines = self.filter_lines_by_length(
+                        lines,
+                        min_length=self.args.min_length,
+                        use_min_length=self.args.use_min_length,
+                    )
                 if "angle" in self.args.line_filter:
                     lines = self.filter_lines_by_angle(lines)
 
@@ -346,11 +357,10 @@ class KITTIDataset(MonodepthDataset):
     def load_rgb(self, path):
         return Image.open(path)
 
-    def load_line_mask(self, paths_map):
+    def load_line_detector_res(self, paths_map):
         img_path = Path(self.data_dir) / "data_lines" / paths_map["rgb"]
         mask_path = img_path.parent / f"{img_path.stem}.npy"
-        lines = np.load(mask_path)
-        return lines
+        return np.load(mask_path, allow_pickle=True).item()
 
 
 class NYUv2Dataset(MonodepthDataset):
@@ -412,8 +422,7 @@ class NYUv2Dataset(MonodepthDataset):
         depth_gt = depth_gt[43:608, 45:472]
         return image, depth_gt
 
-    def load_line_mask(self, paths_map):
+    def load_line_detector_res(self, paths_map):
         img_path = Path(self.data_dir) / paths_map["filename"]
         mask_path = img_path.parent / "line_masks" / f"{img_path.stem}.npy"
-        lines = np.load(mask_path)
-        return lines
+        return np.load(mask_path, allow_pickle=True).item()
