@@ -191,7 +191,8 @@ class MonodepthDataset(Dataset):
                 if "vanishing_point" in self.args.line_filter:
                     lines = self.filter_lines_by_vp(lines, out["vp_labels"][0])
                 if "length" in self.args.line_filter:
-                    lines = self.filter_lines_by_length(lines)
+                if "angle" in self.args.line_filter:
+                    lines = self.filter_lines_by_angle(lines)
 
             concat = np.zeros((image.shape[0], image.shape[1], 1))
             for line in lines:
@@ -223,6 +224,19 @@ class MonodepthDataset(Dataset):
             else:
                 if length > len_mean / 4:
                     new_lines.append(line)
+        return np.array(new_lines)
+
+    def filter_lines_by_angle(self, lines):
+        line_slopes = np.abs(
+            (lines[:, 1, 1] - lines[:, 0, 1]) / (lines[:, 1, 0] - lines[:, 0, 0] + 1e-6)
+        )
+        line_angles = np.arctan(line_slopes)
+        new_lines = []
+        low_thresh = np.pi / 10
+        high_thresh = np.pi / 2.5
+        for idx, line in enumerate(lines):
+            if low_thresh < line_angles[idx] < high_thresh:
+                new_lines.append(line)
         return np.array(new_lines)
 
     def load_img_and_depth(self, paths_map):
