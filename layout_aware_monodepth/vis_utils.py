@@ -95,20 +95,35 @@ def plot_samples_and_preds(
 
 
 def plot_batch(b):
-    for image, depth in zip(b["image"], b["depth"]):
-        ncols = 2 if image.shape[0] == 3 else 3
-        fig, axs = plt.subplots(1, ncols)
-        if ncols == 2:
-            axs[0].imshow(image.permute(1, 2, 0))
+    batch_size = len(b["image"])
+    no_line_channel = b["image"].shape[1] == 3
+    ncols = 2 if no_line_channel else 3
+    fig, axs = plt.subplots(
+        batch_size,
+        ncols,
+        figsize=(max(batch_size * 5, 10), ncols * 5),
+    )
+    for i, (image, depth) in enumerate(zip(b["image"], b["depth"])):
+        if batch_size == 1:
+            ax_0 = axs[0]
+            ax_1 = axs[1]
+            ax_2 = axs[2]
         else:
-            axs[0].imshow(image[:3].permute(1, 2, 0))
-            axs[2].imshow(image[3:].permute(1, 2, 0))
-            axs[2].set_title("line channel")
-        axs[1].imshow(depth)
-        axs[0].set_title("image")
-        axs[1].set_title("depth")
-        for ax in axs[1:]:
-            ax.axis("off")
+            ax_0 = axs[i, 0]
+            ax_1 = axs[i, 1]
+            ax_2 = axs[i, 2]
+
+        if ncols == 2:
+            ax_0.imshow(image.permute(1, 2, 0))
+        else:
+            ax_0.imshow(image[:3].permute(1, 2, 0))
+            ax_2.imshow(image[3:].permute(1, 2, 0))
+            ax_2.set_title("line channel")
+        ax_1.imshow(depth)
+        ax_0.set_title("image")
+        ax_1.set_title("depth")
+    for ax in axs.flatten():
+        ax.axis("off")
     plt.show()
 
 
