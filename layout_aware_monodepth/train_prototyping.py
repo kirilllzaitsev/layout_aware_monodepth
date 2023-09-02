@@ -409,6 +409,11 @@ def main():
     parser.add_argument("--vis_freq_epochs", type=int, default=1)
     parser.add_argument("--crop_type", choices=["garg", "eigen"], default=None)
     parser.add_argument("--target_shape", nargs=2, type=int, default=None)
+    parser.add_argument("--window_size", type=int, default=4)
+
+    ds_args_group = parser.add_argument_group("ds_args")
+    ds_args_group.add_argument("--min_length", type=int, default=None)
+    ds_args_group.add_argument("--use_min_length", action="store_true")
 
     parser.add_argument(
         "--min_depth_eval",
