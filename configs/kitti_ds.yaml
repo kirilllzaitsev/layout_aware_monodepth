@@ -23,3 +23,6 @@ do_load_lines: false
 target_shape: [768, 256]
 # target_shape: [896, 256]
 # target_shape: [640, 192]
+
+min_length: 25
+use_min_length: false

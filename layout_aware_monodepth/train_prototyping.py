@@ -189,7 +189,7 @@ def run(args):
         encoder_name=args.backbone,
         do_insert_after=not args.use_attn_before_se,
         decoder_attention_type=args.decoder_attention_type,
-        window_size=7
+        window_size=args.window_size,
     )
     model.to(device)
 
@@ -214,7 +214,11 @@ def run(args):
 
     epoch_bar = tqdm(total=args.num_epochs, leave=False)
     experiment = create_tracking_exp(args.exp_disabled)
-    exp_dir = f"{cfg.exp_base_dir}/{experiment.name}" if cfg.is_cluster else f"{cfg.exp_base_dir}/exp"
+    exp_dir = (
+        f"{cfg.exp_base_dir}/{experiment.name}"
+        if cfg.is_cluster
+        else f"{cfg.exp_base_dir}/exp"
+    )
     os.makedirs(exp_dir, exist_ok=True)
     print(f"Experiment dir: {exp_dir}")
 
@@ -390,9 +394,7 @@ def main():
     parser.add_argument(
         "--line_op", choices=["overlay", "concat", "concat_binary"], default=None
     )
-    parser.add_argument(
-        "--line_filter", choices=["length", "vanishing_point", "length,vanishing_point"]
-    )
+    parser.add_argument("--line_filter", default=None)
     parser.add_argument("--use_attn_before_se", action="store_true")
     parser.add_argument("--use_single_sample", action="store_true")
     parser.add_argument("--exp_disabled", action="store_true")

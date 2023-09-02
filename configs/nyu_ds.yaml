@@ -17,3 +17,6 @@ do_load_lines: false
 do_crop: true
 target_shape: [256, 256]
 # target_shape: [224, 224]
+
+min_length: 15
+use_min_length: false
