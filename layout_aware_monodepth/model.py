@@ -9,6 +9,43 @@ encoder_to_last_channels_in_level = {
     "resnet18": [64, 128, 256, 512],
 }
 
+class CustomDeepLSD(DeepLSD):
+    def __init__(self, conf):
+        # Base network
+        super().__init__(conf)
+        self.backbone = VGGUNet(tiny=False)
+        dim = 64
+
+        # Predict the distance field and angle to the nearest line
+        # DF head
+        self.df_head = nn.Sequential(
+            nn.Conv2d(dim, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+        )
+
+        # Closest line direction head
+        self.angle_head = nn.Sequential(
+            nn.Conv2d(dim, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+        )
+
+    def forward(self, x):
+        base = self.backbone(x)
+        outputs = {}
+        # DF embedding
+        outputs["df_norm"] = self.df_head(base).squeeze(1)
+        # Closest line direction embedding
+        outputs["line_level"] = self.angle_head(base).squeeze(1)
+        return outputs
+
 
 class DepthModel(nn.Module):
     # initializers
