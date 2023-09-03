@@ -1,13 +1,22 @@
+import numpy as np
 import segmentation_models_pytorch as smp
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from alternet.models.alternet import AttentionBasicBlockB
+from deeplsd.models.backbones.vgg_unet import VGGUNet
+from deeplsd.models.deeplsd import DeepLSD
+from einops import einsum, rearrange
 
 encoder_to_last_channels_in_level = {
     "timm-mobilenetv3_large_100": [16, 24, 40, 80, 112, 160, 960],
     "resnet18": [64, 128, 256, 512],
 }
+skip_conn_channels = {
+    "timm-mobilenetv3_large_100": [3, 16, 24, 40, 112, 960],
+    "resnet18": [16, 64, 64, 128, 256, 512],
+}
+
 
 class CrossAttnBlock(nn.Module):
     def __init__(self, dim, heads, head_channel, dropout=0.0):
@@ -94,6 +103,7 @@ class DepthModel(nn.Module):
         in_channels=3,
         use_attn=False,
         use_extra_conv=False,
+        attend_line_info=False,
     ):
         super().__init__()
 
