@@ -149,7 +149,7 @@ def run(args):
                 range(int(len(ds_subset) * (1 - test_ds_share)), len(ds_subset)),
             )
             test_subset.dataset.transform = test_transform
-        num_workers = 8
+        num_workers = args.num_workers
 
         train_ds_len = int(len(ds_subset) * train_ds_share)
         val_ds_len = int(len(ds_subset) * val_ds_share)
@@ -190,6 +190,7 @@ def run(args):
         do_insert_after=not args.use_attn_before_se,
         decoder_attention_type=args.decoder_attention_type,
         window_size=args.window_size,
+        do_attend_line_info=args.do_attend_line_info,
     )
     model.to(device)
 
@@ -412,6 +413,8 @@ def main():
     parser.add_argument("--crop_type", choices=["garg", "eigen"], default=None)
     parser.add_argument("--target_shape", nargs=2, type=int, default=None)
     parser.add_argument("--window_size", type=int, default=4)
+    parser.add_argument("--num_workers", type=int, default=8)
+    parser.add_argument("--do_attend_line_info", action="store_true")
 
     ds_args_group = parser.add_argument_group("ds_args")
     ds_args_group.add_argument("--min_length", type=int, default=None)

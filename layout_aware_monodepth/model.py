@@ -103,7 +103,7 @@ class DepthModel(nn.Module):
         in_channels=3,
         use_attn=False,
         use_extra_conv=False,
-        attend_line_info=False,
+        do_attend_line_info=False,
     ):
         super().__init__()
 
@@ -138,7 +138,7 @@ class DepthModel(nn.Module):
             torch.load(str(ckpt), map_location="cpu")["model"], strict=False
         )
 
-        self.attend_line_info = attend_line_info
+        self.attend_line_info = do_attend_line_info
         self.line_attn_blocks_with_fm_idxs = []
         if self.attend_line_info:
             skip_conn_channel_spec = skip_conn_channels[encoder_name]
