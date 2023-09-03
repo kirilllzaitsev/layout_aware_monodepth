@@ -223,6 +223,7 @@ class DepthModel(nn.Module):
 
         self.decoder = model.decoder
         self.depth_head = model.segmentation_head
+        self.df_gap = nn.AdaptiveAvgPool2d((8, 8))
 
     def forward(self, x):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
@@ -234,6 +235,10 @@ class DepthModel(nn.Module):
         line_res["df_norm"] = self.df_gap(line_res["df_norm"])
 
         features = self.encoder(x)
+
+        if self.attend_line_info:
+            for i, line_attn_block in self.line_attn_blocks_with_fm_idxs:
+                features[i] = line_attn_block(features[i], line_res["df_norm"])
 
         decoder_output = self.decoder(*features)
 
