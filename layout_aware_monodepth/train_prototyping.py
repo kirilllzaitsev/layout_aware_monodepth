@@ -193,6 +193,7 @@ def run(args):
         do_attend_line_info=args.do_attend_line_info,
     )
     model.to(device)
+    model.dlsd.to(device)
 
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     # if args.backbone == "timm-mobilenetv3_large_100":
