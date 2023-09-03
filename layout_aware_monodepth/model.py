@@ -139,14 +139,15 @@ class DepthModel(nn.Module):
         )
 
         self.attend_line_info = do_attend_line_info
-        self.line_attn_blocks_with_fm_idxs = []
+        self.line_attn_blocks = []
         if self.attend_line_info:
             skip_conn_channel_spec = skip_conn_channels[encoder_name]
             for block_idx in range(len(skip_conn_channel_spec)):
                 x_dim = skip_conn_channel_spec[block_idx]
                 if block_idx % 2 == 1:
                     block = CrossAttnBlock(dim=64, heads=4, head_channel=x_dim)
-                    self.line_attn_blocks_with_fm_idxs.append((block_idx, block))
+                    self.line_attn_blocks.append(block)
+            self.line_attn_blocks = nn.ModuleList(self.line_attn_blocks)
 
         self.use_attn = use_attn
         self.use_extra_conv = use_extra_conv
@@ -247,8 +248,11 @@ class DepthModel(nn.Module):
         features = self.encoder(x)
 
         if self.attend_line_info:
-            for i, line_attn_block in self.line_attn_blocks_with_fm_idxs:
-                features[i] = line_attn_block(features[i], line_res["df_norm"])
+            for i in range(len(self.line_attn_blocks)):
+                line_attn_block = self.line_attn_blocks[i]
+                features[i * 2 + 1] = line_attn_block(
+                    features[i * 2 + 1], line_res["df_norm"]
+                )
 
         decoder_output = self.decoder(*features)
 
