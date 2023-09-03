@@ -274,6 +274,11 @@ class DepthModel(nn.Module):
 
         return x
 
+    def to(self, device):
+        self.to(device)
+        self.dlsd.to(device)
+        return self
+
 
 if __name__ == "__main__":
     model = DepthModel()
