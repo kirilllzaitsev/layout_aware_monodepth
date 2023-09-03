@@ -80,6 +80,30 @@ class DepthModel(nn.Module):
         )
 
         self.encoder = model.encoder
+        deeplsd_conf = {
+            "detect_lines": True,  # Whether to detect lines or only DF/AF
+            "line_detection_params": {
+                "merge": False,
+                "filtering": True,
+                "grad_thresh": 4,
+                "grad_nfa": True,
+            },
+        }
+        ckpt = "../weights/deeplsd/deeplsd_md.tar"
+        self.dlsd = CustomDeepLSD(deeplsd_conf)
+        self.dlsd.load_state_dict(
+            torch.load(str(ckpt), map_location="cpu")["model"], strict=False
+        )
+
+        self.attend_line_info = attend_line_info
+        self.line_attn_blocks_with_fm_idxs = []
+        if self.attend_line_info:
+            skip_conn_channel_spec = skip_conn_channels[encoder_name]
+            for block_idx in range(len(skip_conn_channel_spec)):
+                x_dim = skip_conn_channel_spec[block_idx]
+                if block_idx % 2 == 1:
+                    block = CrossAttnBlock(dim=64, heads=4, head_channel=x_dim)
+                    self.line_attn_blocks_with_fm_idxs.append((block_idx, block))
 
         self.use_attn = use_attn
         self.use_extra_conv = use_extra_conv
@@ -169,6 +193,12 @@ class DepthModel(nn.Module):
 
     def forward(self, x):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
+        if x.shape[1] == 3:
+            grayscale = x.mean(dim=1, keepdim=True)
+        else:
+            grayscale = x
+        line_res = self.dlsd(grayscale)
+        line_res["df_norm"] = self.df_gap(line_res["df_norm"])
 
         features = self.encoder(x)
 
