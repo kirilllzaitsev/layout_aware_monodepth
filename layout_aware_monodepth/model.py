@@ -238,16 +238,16 @@ class DepthModel(nn.Module):
 
     def forward(self, x):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
-        if x.shape[1] == 3:
-            grayscale = x.mean(dim=1, keepdim=True)
-        else:
-            grayscale = x
-        line_res = self.dlsd(grayscale)
-        line_res["df_norm"] = self.df_gap(line_res["df_norm"])
 
         features = self.encoder(x)
 
         if self.attend_line_info:
+            if x.shape[1] == 3:
+                grayscale = x.mean(dim=1, keepdim=True)
+            else:
+                grayscale = x
+            line_res = self.dlsd(grayscale)
+            line_res["df_norm"] = self.df_gap(line_res["df_norm"])
             for i in range(len(self.line_attn_blocks)):
                 line_attn_block = self.line_attn_blocks[i]
                 features[i * 2 + 1] = line_attn_block(
