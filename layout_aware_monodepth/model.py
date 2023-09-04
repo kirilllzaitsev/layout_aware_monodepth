@@ -51,6 +51,32 @@ class CrossAttnBlock(nn.Module):
         return x + out
 
 
+class SelfAttnBlock(nn.Module):
+    def __init__(self, dim, heads, head_channel, dropout=0.0):
+        super().__init__()
+        inner_dim = heads * head_channel
+        self.heads = heads
+        self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=False)
+        self.attend = nn.Softmax(dim=-1)
+        self.scale = head_channel**-0.5
+
+        self.to_out = nn.Sequential(
+            nn.Linear(inner_dim, head_channel), nn.Dropout(dropout)
+        )
+
+    def forward(self, x, z):
+        b, c, h, w = x.shape
+        x = rearrange(x, "b c h w -> b (h w) c")
+        q, k, v = torch.chunk(self.to_qkv(x), 3, dim=-1)
+        dots = einsum(q, k, "b h l c, b h m c -> b h l m") * self.scale
+        attn = self.attend(dots)
+        out = attn @ v
+        out = rearrange(out, "b h l c -> b l (h c)")
+        out = self.to_out(out)
+        out = out.view(b, c, h, w)
+        return x + out
+
+
 class CustomDeepLSD(DeepLSD):
     def __init__(self, conf):
         # Base network
