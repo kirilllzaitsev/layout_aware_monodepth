@@ -197,10 +197,7 @@ def run(args):
 
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     # if args.backbone == "timm-mobilenetv3_large_100":
-    if num_params > 1e7:
-        lr = 1e-3
-    else:
-        lr = 5e-4
+    lr = args.lr or 5e-4
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = SILogLoss()
     early_stopper = EarlyStopper(
@@ -416,6 +413,8 @@ def main():
     parser.add_argument("--window_size", type=int, default=4)
     parser.add_argument("--num_workers", type=int, default=8)
     parser.add_argument("--do_attend_line_info", action="store_true")
+
+    parser.add_argument("--lr", type=float, default=None)
 
     ds_args_group = parser.add_argument_group("ds_args")
     ds_args_group.add_argument("--min_length", type=int, default=None)
