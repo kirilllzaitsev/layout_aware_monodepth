@@ -59,7 +59,7 @@ class Trainer:
         out = model(x)
         loss = criterion(out, y)
         loss.backward()
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
         optimizer.step()
         return {"loss": loss.item(), "pred": out}
 
