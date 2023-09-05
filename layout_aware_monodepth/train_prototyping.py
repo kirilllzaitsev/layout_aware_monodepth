@@ -388,48 +388,57 @@ def run(args):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ds", type=str, default="nyu", choices=["kitti", "nyu"])
-    parser.add_argument("--do_overfit", action="store_true")
-    parser.add_argument(
-        "--line_op", choices=["overlay", "concat", "concat_binary"], default=None
-    )
-    parser.add_argument("--line_filter", default=None)
-    parser.add_argument("--use_attn_before_se", action="store_true")
-    parser.add_argument("--use_single_sample", action="store_true")
-    parser.add_argument("--exp_disabled", action="store_true")
-    parser.add_argument("--use_attn", action="store_true")
-    parser.add_argument("--use_extra_conv", action="store_true")
-    parser.add_argument("--use_grayscale_img", action="store_true")
-    parser.add_argument("--use_eigen", action="store_true")
-    parser.add_argument("--do_save_model", action="store_true")
-    parser.add_argument("--not_load_lines", dest="do_load_lines", action="store_false")
-    parser.add_argument("--backbone", default="timm-mobilenetv3_large_100")
-    parser.add_argument("--decoder_attention_type", default=None, choices=["scse"])
-    parser.add_argument("--num_epochs", type=int, default=20)
-    parser.add_argument("--save_freq_epochs", type=int, default=2)
-    parser.add_argument("--vis_freq_epochs", type=int, default=1)
-    parser.add_argument("--crop_type", choices=["garg", "eigen"], default=None)
-    parser.add_argument("--target_shape", nargs=2, type=int, default=None)
-    parser.add_argument("--window_size", type=int, default=4)
-    parser.add_argument("--num_workers", type=int, default=8)
-    parser.add_argument("--do_attend_line_info", action="store_true")
-
-    parser.add_argument("--lr", type=float, default=None)
 
     ds_args_group = parser.add_argument_group("ds_args")
     ds_args_group.add_argument("--min_length", type=int, default=None)
     ds_args_group.add_argument("--use_min_length", action="store_true")
-
-    parser.add_argument(
+    ds_args_group.add_argument(
+        "--ds", type=str, default="nyu", choices=["kitti", "nyu"]
+    )
+    ds_args_group.add_argument("--do_overfit", action="store_true")
+    ds_args_group.add_argument("--use_single_sample", action="store_true")
+    ds_args_group.add_argument(
+        "--line_op", choices=["overlay", "concat", "concat_binary"], default=None
+    )
+    ds_args_group.add_argument("--line_filter", default=None)
+    ds_args_group.add_argument("--use_grayscale_img", action="store_true")
+    ds_args_group.add_argument("--use_eigen", action="store_true")
+    ds_args_group.add_argument(
+        "--not_load_lines", dest="do_load_lines", action="store_false"
+    )
+    ds_args_group.add_argument("--crop_type", choices=["garg", "eigen"], default=None)
+    ds_args_group.add_argument("--target_shape", nargs=2, type=int, default=None)
+    ds_args_group.add_argument(
         "--min_depth_eval",
         type=float,
         default=1e-3,
     )
-    parser.add_argument("--max_depth_eval", type=float, default=10)
-    parser.add_argument("--batch_size", type=int)
-    # parser.add_argument("--lr", type=float, default=1e-3)
+    ds_args_group.add_argument("--max_depth_eval", type=float, default=10)
+    ds_args_group.add_argument("--batch_size", type=int)
+    ds_args_group.add_argument("--num_workers", type=int, default=8)
 
-    parser.add_argument("--exp_tags", nargs="*", default=[])
+    ops_args_group = parser.add_argument_group("ops_args")
+    ops_args_group.add_argument("--save_freq_epochs", type=int, default=2)
+    ops_args_group.add_argument("--vis_freq_epochs", type=int, default=1)
+    ops_args_group.add_argument("--do_save_model", action="store_true")
+    ops_args_group.add_argument("--exp_disabled", action="store_true")
+    ops_args_group.add_argument("--exp_tags", nargs="*", default=[])
+
+    model_args_group = parser.add_argument_group("model_args")
+    model_args_group.add_argument("--use_attn", action="store_true")
+    model_args_group.add_argument("--use_extra_conv", action="store_true")
+    model_args_group.add_argument("--backbone", default="timm-mobilenetv3_large_100")
+    model_args_group.add_argument(
+        "--decoder_attention_type", default=None, choices=["scse"]
+    )
+    model_args_group.add_argument("--use_attn_before_se", action="store_true")
+    model_args_group.add_argument("--window_size", type=int, default=4)
+    model_args_group.add_argument("--do_attend_line_info", action="store_true")
+
+    optim_args_group = parser.add_argument_group("optim_args")
+    optim_args_group.add_argument("--num_epochs", type=int, default=20)
+    optim_args_group.add_argument("--lr", type=float, default=None)
+
     args = parser.parse_args()
     if args.use_attn_before_se:
         assert (
