@@ -7,6 +7,7 @@ from pathlib import Path
 import cv2
 import h5py
 import numpy as np
+import skimage
 import torch
 import torch.utils.data.distributed
 from PIL import Image
@@ -75,6 +76,7 @@ class MonodepthDataset(Dataset):
 
     def load_benchmark_batch(self, sample_paths):
         images = []
+        line_embeds = []
         depths = []
         for paths_map in sample_paths:
             image, depth_gt = self.load_img_and_depth(paths_map)
@@ -90,8 +92,16 @@ class MonodepthDataset(Dataset):
             sample["image"] = test_transform(sample["image"])
 
             images.append(sample["image"])
+            line_embeds.append(sample["line_embed"])
             depths.append(torch.from_numpy(sample["depth"]))
-        return {"image": torch.stack(images), "depth": torch.stack(depths)}
+            
+        res = {
+            "image": torch.stack(images),
+            "depth": torch.stack(depths),
+        }
+        if self.args.line_op == "concat_embed":
+            res["line_embed"] = torch.stack(line_embeds)
+        return res
 
     def prep_train_sample(
         self, image, depth_gt, do_augment=False, line_detector_res=None
@@ -108,6 +118,10 @@ class MonodepthDataset(Dataset):
             image = self.overlay_lines(image)
         elif self.args.line_op in ["concat", "concat_binary"]:
             image = self.concat_lines(image, line_detector_res=line_detector_res)
+        elif self.args.line_op in ["concat_embed"]:
+            line_embed = self.get_line_embed(image, line_detector_res)
+            if self.args.do_crop:
+                line_embed = kb_crop(line_embed.numpy())
 
         if self.args.do_crop:
             image, depth_gt = self.crop(image, depth_gt)
@@ -135,6 +149,9 @@ class MonodepthDataset(Dataset):
             "image": image,
             "depth": depth_gt,
         }
+
+        if self.args.line_op in ["concat_embed"]:
+            sample["line_embed"] = line_embed
         return sample
 
     def prep_test_sample(self, image):
@@ -260,14 +277,15 @@ class MonodepthDataset(Dataset):
                     new_lines.append(line)
         return np.array(new_lines)
 
-    def filter_lines_by_angle(self, lines):
+    def filter_lines_by_angle(
+        self, lines, low_thresh=np.pi / 10, high_thresh=np.pi / 2.5
+    ):
         line_slopes = np.abs(
             (lines[:, 1, 1] - lines[:, 0, 1]) / (lines[:, 1, 0] - lines[:, 0, 0] + 1e-6)
         )
         line_angles = np.arctan(line_slopes)
         new_lines = []
-        low_thresh = np.pi / 10
-        high_thresh = np.pi / 2.5
+
         for idx, line in enumerate(lines):
             if low_thresh < line_angles[idx] < high_thresh:
                 new_lines.append(line)
