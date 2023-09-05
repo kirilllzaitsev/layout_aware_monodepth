@@ -194,16 +194,7 @@ class MonodepthDataset(Dataset):
             lines = out["lines"][0].astype(np.int32)
 
             if self.args.line_filter is not None:
-                if "vanishing_point" in self.args.line_filter:
-                    lines = self.filter_lines_by_vp(lines, out["vp_labels"][0])
-                if "length" in self.args.line_filter:
-                    lines = self.filter_lines_by_length(
-                        lines,
-                        min_length=self.args.min_length,
-                        use_min_length=self.args.use_min_length,
-                    )
-                if "angle" in self.args.line_filter:
-                    lines = self.filter_lines_by_angle(lines)
+                lines = self.filter_lines(out, lines)
 
             concat = np.zeros((image.shape[0], image.shape[1], 1))
             for line in lines:
@@ -213,6 +204,19 @@ class MonodepthDataset(Dataset):
 
         concat = concat.astype(np.float32)
         return concat
+
+    def filter_lines(self, out, lines):
+        if "vanishing_point" in self.args.line_filter:
+            lines = self.filter_lines_by_vp(lines, out["vp_labels"][0])
+        if "length" in self.args.line_filter:
+            lines = self.filter_lines_by_length(
+                lines,
+                min_length=self.args.min_length,
+                use_min_length=self.args.use_min_length,
+            )
+        if "angle" in self.args.line_filter:
+            lines = self.filter_lines_by_angle(lines)
+        return lines
 
     def filter_lines_by_vp(self, lines, vp_labels):
         vp_labels = np.array(vp_labels)
