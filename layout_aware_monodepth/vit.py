@@ -133,8 +133,7 @@ class ViT(nn.Module):
             nn.LayerNorm(dim),
         )
 
-        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches, dim))
-        self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
+        # self.pos_embedding = nn.Parameter(torch.randn(1, num_patches, dim))
         self.dropout = nn.Dropout(emb_dropout)
 
         self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout)
@@ -142,13 +141,11 @@ class ViT(nn.Module):
         self.pool = pool
         self.to_latent = nn.Identity()
 
-        self.mlp_head = nn.Linear(dim, num_classes)
-
     def forward(self, img):
         x = self.to_patch_embedding(img)
         b, n, _ = x.shape
 
-        x += self.pos_embedding[:, :(n)]
+        # x += self.pos_embedding[:, :(n)]
         x = self.dropout(x)
 
         x = self.transformer(x)
