@@ -25,6 +25,7 @@ class SILogLoss(nn.Module, MaskerMixin):
 
     def forward(self, pred, target, mask=None, interpolate=False, min_depth=1e-3):
         pred, target = self.mask(pred, target, mask, interpolate, min_depth)
+        pred = torch.clamp(pred, min=min_depth)
         g = torch.log(pred) - torch.log(target)
         # n, c, h, w = g.shape
         # norm = 1/(h*w)
