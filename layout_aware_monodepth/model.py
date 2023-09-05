@@ -1,12 +1,12 @@
-import numpy as np
 import segmentation_models_pytorch as smp
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from alternet.models.alternet import AttentionBasicBlockB
 from deeplsd.models.backbones.vgg_unet import VGGUNet
 from deeplsd.models.deeplsd import DeepLSD
 from einops import einsum, rearrange
+
+from layout_aware_monodepth.vit import ViT
 
 encoder_to_last_channels_in_level = {
     "timm-mobilenetv3_large_100": [16, 24, 40, 80, 112, 160, 960],
@@ -116,7 +116,6 @@ class CustomDeepLSD(DeepLSD):
 
 
 class DepthModel(nn.Module):
-    # initializers
     def __init__(
         self,
         encoder_name="timm-mobilenetv3_large_100",
@@ -130,6 +129,7 @@ class DepthModel(nn.Module):
         use_attn=False,
         use_extra_conv=False,
         do_attend_line_info=False,
+        line_info_feature_map_kwargs=None,
     ):
         super().__init__()
 
