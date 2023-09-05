@@ -276,10 +276,19 @@ class DepthModel(nn.Module):
         self.depth_head = model.segmentation_head
         self.df_gap = nn.AdaptiveAvgPool2d((8, 8))
 
-    def forward(self, x):
+    def forward(self, x, line_info=None):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
 
         features = self.encoder(x)
+
+        if self.use_line_info_as_feature_map:
+            assert line_info is not None
+            line_info_embed = self.line_info_extractor(line_info)
+            features[-1] = self.bottleneck_proj(features[-1])
+            features[-1] = torch.cat(
+                [features[-1], line_info_embed.repeat((1, 8, 8, 1)).transpose(1, 3)],
+                dim=1,
+            )
 
         if self.attend_line_info:
             if x.shape[1] == 3:
