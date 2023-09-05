@@ -175,6 +175,20 @@ class DepthModel(nn.Module):
                     self.line_attn_blocks.append(block)
             self.line_attn_blocks = nn.ModuleList(self.line_attn_blocks)
 
+        use_line_info_as_feature_map = line_info_feature_map_kwargs is not None
+        self.use_line_info_as_feature_map = use_line_info_as_feature_map
+        if self.use_line_info_as_feature_map:
+            self.line_info_extractor = ViT(**line_info_feature_map_kwargs)
+            line_info_out_dim = line_info_feature_map_kwargs["dim"]
+            # what about 8x8 at the bottleneck
+            self.bottleneck_proj = nn.Conv2d(
+                encoder_to_last_channels_in_level[encoder_name][-1],
+                encoder_to_last_channels_in_level[encoder_name][-1] - line_info_out_dim,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+            )
+
         self.use_attn = use_attn
         self.use_extra_conv = use_extra_conv
         if use_attn or use_extra_conv:
