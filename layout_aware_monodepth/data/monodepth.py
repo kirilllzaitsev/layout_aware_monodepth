@@ -176,6 +176,25 @@ class MonodepthDataset(Dataset):
 
         return overlay
 
+    def get_line_embed(self, image, line_detector_res=None):
+        if line_detector_res is None:
+            line_detector_res = self.run_line_detector(image)
+
+        lines = line_detector_res["lines"][0].astype(np.int32)
+        if self.args.line_filter is not None:
+            lines = self.filter_lines(line_detector_res, lines)
+
+        line_embedding = torch.nn.init.orthogonal_(torch.empty(len(lines), 128))
+        norm_line_embedding = torch.nn.functional.normalize(
+            line_embedding, dim=-1, eps=1e-12, out=None
+        )
+        feature_map = torch.zeros((*image.shape[:2], 128))
+
+        for i, line in enumerate(lines):
+            y, x = skimage.draw.line(*(line.astype("int").flatten()))
+            feature_map[x, y] = norm_line_embedding[i]
+        return feature_map
+
     def concat_lines(self, image, line_detector_res=None):
         if line_detector_res is None:
             line_detector_res = self.run_line_detector(image)
