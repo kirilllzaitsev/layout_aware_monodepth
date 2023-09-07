@@ -286,7 +286,7 @@ class DepthModel(nn.Module):
             line_info_embed = self.line_info_extractor(line_info)
             features[-1] = self.bottleneck_proj(features[-1])
             features[-1] = torch.cat(
-                [features[-1], line_info_embed.repeat((1, 8, 8, 1)).transpose(1, 3)],
+                [features[-1], line_info_embed.unsqueeze(-1).unsqueeze(-1).repeat((1, 1, features[-1].shape[-2], features[-1].shape[-1]))],
                 dim=1,
             )
 
