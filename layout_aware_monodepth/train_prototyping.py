@@ -110,6 +110,8 @@ def run(args):
             setattr(ds_args, k, v)
         else:
             non_overridden_ds_args.append(k)
+    if args.line_embed_channels:
+        ds_args.line_embed_channels = args.line_embed_channels
     print(f"Non-overridden ds_args: {non_overridden_ds_args}")
 
     if args.ds == "kitti":
@@ -197,6 +199,20 @@ def run(args):
         decoder_attention_type=args.decoder_attention_type,
         window_size=args.window_size,
         do_attend_line_info=args.do_attend_line_info,
+        line_info_feature_map_kwargs=None
+        if args.line_op != "concat_embed"
+        else dict(
+            image_size=(256, 768),
+            patch_size=(8, 16),
+            dim=args.line_embed_channels,
+            depth=1,
+            heads=8,
+            channels=args.line_embed_channels,
+            mlp_dim=256,
+            dropout=0.1,
+            emb_dropout=0.1,
+            dim_head=64,
+        ),
     )
     model.to(device)
     model.dlsd.to(device)
@@ -404,7 +420,9 @@ def main():
     ds_args_group.add_argument("--do_overfit", action="store_true")
     ds_args_group.add_argument("--use_single_sample", action="store_true")
     ds_args_group.add_argument(
-        "--line_op", choices=["overlay", "concat", "concat_binary"], default=None
+        "--line_op",
+        choices=["overlay", "concat", "concat_binary", "concat_embed"],
+        default=None,
     )
     ds_args_group.add_argument("--line_filter", default=None)
     ds_args_group.add_argument("--use_grayscale_img", action="store_true")
@@ -440,6 +458,7 @@ def main():
     model_args_group.add_argument("--use_attn_before_se", action="store_true")
     model_args_group.add_argument("--window_size", type=int, default=4)
     model_args_group.add_argument("--do_attend_line_info", action="store_true")
+    model_args_group.add_argument("--line_embed_channels", type=int, default=None)
 
     optim_args_group = parser.add_argument_group("optim_args")
     optim_args_group.add_argument("--num_epochs", type=int, default=20)
