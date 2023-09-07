@@ -149,22 +149,23 @@ class DepthModel(nn.Module):
         )
 
         self.encoder = model.encoder
-        deeplsd_conf = {
-            "detect_lines": True,  # Whether to detect lines or only DF/AF
-            "line_detection_params": {
-                "merge": False,
-                "filtering": True,
-                "grad_thresh": 4,
-                "grad_nfa": True,
-            },
-        }
-        ckpt = "../weights/deeplsd/deeplsd_md.tar"
-        self.dlsd = CustomDeepLSD(deeplsd_conf)
-        self.dlsd.load_state_dict(
-            torch.load(str(ckpt), map_location="cpu")["model"], strict=False
-        )
-
         self.attend_line_info = do_attend_line_info
+        if self.attend_line_info:
+            deeplsd_conf = {
+                "detect_lines": True,  # Whether to detect lines or only DF/AF
+                "line_detection_params": {
+                    "merge": False,
+                    "filtering": True,
+                    "grad_thresh": 4,
+                    "grad_nfa": True,
+                },
+            }
+            ckpt = "../weights/deeplsd/deeplsd_md.tar"
+            self.dlsd = CustomDeepLSD(deeplsd_conf)
+            self.dlsd.load_state_dict(
+                torch.load(str(ckpt), map_location="cpu")["model"], strict=False
+            )
+
         self.line_attn_blocks = []
         if self.attend_line_info:
             skip_conn_channel_spec = skip_conn_channels[encoder_name]
