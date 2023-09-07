@@ -94,7 +94,7 @@ class MonodepthDataset(Dataset):
             images.append(sample["image"])
             line_embeds.append(sample["line_embed"])
             depths.append(torch.from_numpy(sample["depth"]))
-            
+
         res = {
             "image": torch.stack(images),
             "depth": torch.stack(depths),
@@ -153,7 +153,7 @@ class MonodepthDataset(Dataset):
         if self.args.line_op in ["concat_embed"]:
             sample["line_embed"] = (
                 torch.from_numpy(line_embed)
-                .resize_(*image.shape[1:], 128)
+                .resize_(*image.shape[:2], self.args.line_embed_channels)
                 .permute(2, 0, 1)
             )
         return sample
