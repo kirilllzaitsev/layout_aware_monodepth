@@ -54,23 +54,29 @@ class Trainer:
 
     def train_step(self, model, batch, criterion, optimizer):
         model.train()
-        x, y = batch["image"].to(device), batch["depth"].permute(0, 3, 1, 2).to(device)
+        y = batch["depth"].permute(0, 3, 1, 2).to(device)
         optimizer.zero_grad()
-        out = model(x)
+        out = self.model_forward(model, batch)
         loss = criterion(out, y)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
         optimizer.step()
         return {"loss": loss.item(), "pred": out}
 
+    def model_forward(self, model, batch):
+        x = batch["image"].to(device)
+        if self.args.line_op == "concat_embed":
+            out = model(x, batch["line_embed"].to(device))
+        else:
+            out = model(x)
+        return out
+
     def eval_step(self, model, batch, criterion):
         model.eval()
         result = {}
         with torch.no_grad():
-            x, y = batch["image"].to(device), batch["depth"].permute(0, 3, 1, 2).to(
-                device
-            )
-            pred = model(x)
+            y = batch["depth"].permute(0, 3, 1, 2).to(device)
+            pred = self.model_forward(model, batch)
             test_loss = criterion(pred, y)
             result["loss"] = test_loss.item()
             result["pred"] = pred
