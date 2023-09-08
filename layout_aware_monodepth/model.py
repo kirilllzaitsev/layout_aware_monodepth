@@ -78,7 +78,7 @@ class SelfAttnBlock(nn.Module):
 
 
 class CustomDeepLSD(DeepLSD):
-    def __init__(self, conf):
+    def __init__(self, conf, return_embedding=True):
         # Base network
         super().__init__(conf)
         self.backbone = VGGUNet(tiny=False)
@@ -86,17 +86,28 @@ class CustomDeepLSD(DeepLSD):
 
         # Predict the distance field and angle to the nearest line
         # DF head
-        self.df_head = nn.Sequential(
-            nn.Conv2d(dim, 64, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.BatchNorm2d(64),
-            nn.Conv2d(64, 64, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.BatchNorm2d(64),
-        )
+        if not return_embedding:
+            self.df_head = nn.Sequential(
+                *self.get_common_backbone(dim),
+                nn.Conv2d(64, 1, kernel_size=1),
+                nn.ReLU(),
+            )
+            # Closest line direction head
+            self.angle_head = nn.Sequential(
+                *self.get_common_backbone(dim),
+                nn.Conv2d(64, 1, kernel_size=1),
+                nn.Sigmoid(),
+            )
+        else:
+            self.df_head = nn.Sequential(
+                *self.get_common_backbone(dim),
+            )
+            self.angle_head = nn.Sequential(
+                *self.get_common_backbone(dim),
+            )
 
-        # Closest line direction head
-        self.angle_head = nn.Sequential(
+    def get_common_backbone(self, dim):
+        return (
             nn.Conv2d(dim, 64, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.BatchNorm2d(64),
