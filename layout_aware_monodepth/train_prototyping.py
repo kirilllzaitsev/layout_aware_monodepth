@@ -200,7 +200,7 @@ def run(args):
         window_size=args.window_size,
         do_attend_line_info=args.do_attend_line_info,
         line_info_feature_map_kwargs=None
-        if args.line_op != "concat_embed"
+        if args.line_embed_channels is None
         else dict(
             image_size=(256, 768),
             patch_size=(8, 16),
@@ -213,6 +213,8 @@ def run(args):
             emb_dropout=0.1,
             dim_head=64,
         ),
+        add_df_to_line_info=args.add_df_to_line_info,
+        return_deeplsd_embedding=args.return_deeplsd_embedding,
     )
     model.to(device)
     model.dlsd.to(device)
@@ -459,6 +461,12 @@ def main():
     model_args_group.add_argument("--window_size", type=int, default=4)
     model_args_group.add_argument("--do_attend_line_info", action="store_true")
     model_args_group.add_argument("--line_embed_channels", type=int, default=None)
+    model_args_group.add_argument("--add_df_to_line_info", action="store_true")
+    model_args_group.add_argument(
+        "--not_return_deeplsd_embedding",
+        dest="return_deeplsd_embedding",
+        action="store_false",
+    )
 
     optim_args_group = parser.add_argument_group("optim_args")
     optim_args_group.add_argument("--num_epochs", type=int, default=20)
