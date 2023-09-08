@@ -92,7 +92,8 @@ class MonodepthDataset(Dataset):
             sample["image"] = test_transform(sample["image"])
 
             images.append(sample["image"])
-            line_embeds.append(sample["line_embed"])
+            if self.args.line_op == "concat_embed":
+                line_embeds.append(sample["line_embed"])
             depths.append(torch.from_numpy(sample["depth"]))
 
         res = {
