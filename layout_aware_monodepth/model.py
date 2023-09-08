@@ -141,6 +141,8 @@ class DepthModel(nn.Module):
         use_extra_conv=False,
         do_attend_line_info=False,
         line_info_feature_map_kwargs=None,
+        add_df_to_line_info=False,
+        return_deeplsd_embedding=True,
     ):
         super().__init__()
 
@@ -189,6 +191,7 @@ class DepthModel(nn.Module):
 
         use_line_info_as_feature_map = line_info_feature_map_kwargs is not None
         self.use_line_info_as_feature_map = use_line_info_as_feature_map
+        self.add_df_to_line_info = add_df_to_line_info
         if self.use_line_info_as_feature_map:
             self.line_info_extractor = ViT(**line_info_feature_map_kwargs)
             line_info_out_dim = line_info_feature_map_kwargs["dim"]
