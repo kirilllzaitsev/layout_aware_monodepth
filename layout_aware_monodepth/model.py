@@ -301,6 +301,19 @@ class DepthModel(nn.Module):
         self.decoder = model.decoder
         self.df_gap = nn.AdaptiveAvgPool2d((8, 8))
 
+    def get_deeplsd_pred(self, x):
+        gray_img = x.mean(dim=1, keepdim=True)
+        line_res = self.dlsd(gray_img)
+        return line_res
+
+    def get_pos_embed_from_df(self, df):
+        num_bins = 100
+        _, edges = torch.histogram(df.flatten().cpu(), bins=num_bins)
+        bin_idxs = torch.bucketize(df.flatten().cpu(), edges).reshape(df.shape)
+        random_embeds = torch.randn(num_bins + 2, 96, device=df.device)
+        new_embeds = random_embeds[bin_idxs].permute(0, 3, 1, 2)
+        return new_embeds
+
     def forward(self, x, line_info=None):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
 
