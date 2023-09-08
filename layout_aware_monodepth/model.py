@@ -161,9 +161,9 @@ class DepthModel(nn.Module):
 
         self.encoder = model.encoder
         self.attend_line_info = do_attend_line_info
-        if self.attend_line_info:
+        if self.attend_line_info or add_df_to_line_info:
             deeplsd_conf = {
-                "detect_lines": True,  # Whether to detect lines or only DF/AF
+                "detect_lines": not add_df_to_line_info,
                 "line_detection_params": {
                     "merge": False,
                     "filtering": True,
@@ -172,10 +172,10 @@ class DepthModel(nn.Module):
                 },
             }
             ckpt = "../weights/deeplsd/deeplsd_md.tar"
-            self.dlsd = CustomDeepLSD(deeplsd_conf)
-            self.dlsd.load_state_dict(
-                torch.load(str(ckpt), map_location="cpu")["model"], strict=False
+            self.dlsd = CustomDeepLSD(
+                deeplsd_conf, return_embedding=return_deeplsd_embedding
             )
+            self.dlsd.load_state_dict(torch.load(str(ckpt))["model"], strict=False)
 
         self.line_attn_blocks = []
         if self.attend_line_info:
