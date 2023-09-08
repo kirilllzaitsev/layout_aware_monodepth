@@ -322,11 +322,17 @@ class DepthModel(nn.Module):
         if self.use_line_info_as_feature_map:
             assert line_info is not None
             line_info_embed = self.line_info_extractor(line_info)
-            features[-1] = self.bottleneck_proj(features[-1])
-            features[-1] = torch.cat(
-                [features[-1], line_info_embed.unsqueeze(-1).unsqueeze(-1).repeat((1, 1, features[-1].shape[-2], features[-1].shape[-1]))],
-                dim=1,
-            )
+            if not self.add_df_to_line_info:
+                features[-1] = self.bottleneck_proj(features[-1])
+                features[-1] = torch.cat(
+                    [
+                        features[-1],
+                        line_info_embed.unsqueeze(-1)
+                        .unsqueeze(-1)
+                        .repeat((1, 1, features[-1].shape[-2], features[-1].shape[-1])),
+                    ],
+                    dim=1,
+                )
 
         if self.attend_line_info:
             if x.shape[1] == 3:
@@ -342,6 +348,11 @@ class DepthModel(nn.Module):
                 )
 
         decoder_output = self.decoder(*features)
+
+        if self.add_df_to_line_info:
+            line_res = self.get_deeplsd_pred(x)
+            df_pos_embed = self.get_pos_embed_from_df(line_res["df_norm"])
+            decoder_output = torch.cat([decoder_output, df_pos_embed], dim=1)
 
         depth = self.depth_head(decoder_output)
 
