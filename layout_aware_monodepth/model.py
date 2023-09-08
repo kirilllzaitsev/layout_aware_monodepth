@@ -283,9 +283,22 @@ class DepthModel(nn.Module):
                                 base_block.se,
                             )
                             base_block.se = new_se_block
+        if self.add_df_to_line_info:
+            x_dim = decoder_channels[-1] + line_info_feature_map_kwargs["channels"]
+            block = AttentionBasicBlockB(
+                x_dim,
+                x_dim,
+                stride=1,
+                heads=4,
+                window_size=window_size,
+            )
 
+            self.depth_head = nn.Sequential(
+                block, nn.Conv2d(x_dim, 1, kernel_size=3, padding=1), nn.Sigmoid()
+            )
+        else:
+            self.depth_head = model.segmentation_head
         self.decoder = model.decoder
-        self.depth_head = model.segmentation_head
         self.df_gap = nn.AdaptiveAvgPool2d((8, 8))
 
     def forward(self, x, line_info=None):
