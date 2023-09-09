@@ -62,15 +62,8 @@ class DepthModel(nn.Module):
                 not add_df_to_line_info, return_deeplsd_embedding
             )
 
-        self.line_attn_blocks = []
         if self.attend_line_info:
-            skip_conn_channel_spec = skip_conn_channels[encoder_name]
-            for block_idx in range(len(skip_conn_channel_spec)):
-                x_dim = skip_conn_channel_spec[block_idx]
-                if block_idx % 2 == 1:
-                    block = CrossAttnBlock(dim=64, heads=4, head_channel=x_dim)
-                    self.line_attn_blocks.append(block)
-            self.line_attn_blocks = nn.ModuleList(self.line_attn_blocks)
+            self.line_attn_blocks = self.create_line_attn_blocks(encoder_name)
 
         use_line_info_as_feature_map = line_info_feature_map_kwargs is not None
         self.use_line_info_as_feature_map = use_line_info_as_feature_map
@@ -78,7 +71,6 @@ class DepthModel(nn.Module):
         if self.use_line_info_as_feature_map:
             self.line_info_extractor = ViT(**line_info_feature_map_kwargs)
             line_info_out_dim = line_info_feature_map_kwargs["dim"]
-            # what about 8x8 at the bottleneck
             self.bottleneck_proj = nn.Conv2d(
                 encoder_to_last_channels_in_level[encoder_name][-1],
                 encoder_to_last_channels_in_level[encoder_name][-1] - line_info_out_dim,
@@ -96,79 +88,12 @@ class DepthModel(nn.Module):
             ), f"Must provide encoder channel spec for {encoder_name=}"
 
             if do_insert_after:
-                for block_idx in range(len(encoder_channel_spec)):
-                    x_dim = encoder_channel_spec[block_idx]
-                    if use_attn:
-                        block = AttentionBasicBlockB(
-                            x_dim,
-                            x_dim,
-                            stride=1,
-                            heads=4,
-                            window_size=window_size,
-                        )
-                    elif use_extra_conv:
-                        block = nn.Sequential(
-                            nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
-                            nn.ReLU(inplace=True),
-                            nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
-                            nn.ReLU(inplace=True),
-                        )
-                    else:
-                        block = nn.Identity()
-                    if self.encoder_name == "timm-mobilenetv3_large_100":
-                        self.encoder.model.blocks[block_idx] = nn.Sequential(
-                            self.encoder.model.blocks[block_idx], block
-                        )
-                    elif self.encoder_name == "resnet18":
-                        layer = getattr(self.encoder, f"layer{block_idx+1}")
-                        layer = nn.Sequential(layer, block)
-                        setattr(self.encoder, f"layer{block_idx+1}", layer)
+                self.embed_attn_after_se_block(
+                    window_size, use_attn, use_extra_conv, encoder_channel_spec
+                )
 
             elif self.encoder_name == "timm-mobilenetv3_large_100":
-                for block_idx in range(len(self.encoder.model.blocks) - 1):
-                    for subblock_idx in range(
-                        len(self.encoder.model.blocks[block_idx])
-                    ):
-                        if not isinstance(
-                            self.encoder.model.blocks[block_idx][subblock_idx].se,
-                            nn.Identity,
-                        ):
-                            x_dim = model.encoder.model.blocks[block_idx][subblock_idx].se.conv_reduce.in_channels  # fmt: skip
-                        else:
-                            x_dim = model.encoder.model.blocks[block_idx][subblock_idx].bn2.bias.numel()  # fmt: skip
-
-                        if use_attn:
-                            block = AttentionBasicBlockB(
-                                x_dim,
-                                x_dim,
-                                stride=1,
-                                heads=4,
-                                window_size=window_size,
-                            )
-                        elif use_extra_conv:
-                            block = nn.Sequential(
-                                nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
-                                nn.ReLU(inplace=True),
-                                nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
-                                nn.ReLU(inplace=True),
-                            )
-                            if block_idx > 4:
-                                block = nn.Sequential(
-                                    block,
-                                    nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
-                                    nn.ReLU(inplace=True),
-                                )
-                        else:
-                            block = nn.Identity()
-                        if self.encoder_name == "timm-mobilenetv3_large_100":
-                            base_block = model.encoder.model.blocks[block_idx][
-                                subblock_idx
-                            ]
-                            new_se_block = nn.Sequential(
-                                block,
-                                base_block.se,
-                            )
-                            base_block.se = new_se_block
+                self.embed_attn_before_se_block(window_size, use_attn, use_extra_conv)
         if self.add_df_to_line_info:
             x_dim = decoder_channels[-1] + line_info_feature_map_kwargs["channels"]
             block = AttentionBasicBlockB(
@@ -187,18 +112,15 @@ class DepthModel(nn.Module):
         self.decoder = model.decoder
         self.df_gap = nn.AdaptiveAvgPool2d((8, 8))
 
-    def get_deeplsd_pred(self, x):
-        gray_img = x.mean(dim=1, keepdim=True)
-        line_res = self.dlsd(gray_img)
-        return line_res
-
-    def get_pos_embed_from_df(self, df):
-        num_bins = 100
-        _, edges = torch.histogram(df.flatten().cpu(), bins=num_bins)
-        bin_idxs = torch.bucketize(df.flatten().cpu(), edges).reshape(df.shape)
-        random_embeds = torch.randn(num_bins + 2, 96, device=df.device)
-        new_embeds = random_embeds[bin_idxs].permute(0, 3, 1, 2)
-        return new_embeds
+    def create_line_attn_blocks(self, encoder_name):
+        line_attn_blocks = []
+        skip_conn_channel_spec = skip_conn_channels[encoder_name]
+        for block_idx in range(len(skip_conn_channel_spec)):
+            x_dim = skip_conn_channel_spec[block_idx]
+            if block_idx % 2 == 1:
+                block = CrossAttnBlock(dim=64, heads=4, head_channel=x_dim)
+                line_attn_blocks.append(block)
+        return nn.ModuleList(line_attn_blocks)
 
     def forward(self, x, line_info=None):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
@@ -244,23 +166,91 @@ class DepthModel(nn.Module):
 
         return depth
 
-    @torch.no_grad()
-    def predict(self, x):
-        """Inference method. Switch model to `eval` mode, call `.forward(x)` with `torch.no_grad()`
+    def embed_attn_after_se_block(
+        self, window_size, use_attn, use_extra_conv, encoder_channel_spec
+    ):
+        for block_idx in range(len(encoder_channel_spec)):
+            x_dim = encoder_channel_spec[block_idx]
+            if use_attn:
+                block = AttentionBasicBlockB(
+                    x_dim,
+                    x_dim,
+                    stride=1,
+                    heads=4,
+                    window_size=window_size,
+                )
+            elif use_extra_conv:
+                block = nn.Sequential(
+                    nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
+                    nn.ReLU(inplace=True),
+                    nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
+                    nn.ReLU(inplace=True),
+                )
+            else:
+                block = nn.Identity()
+            if self.encoder_name == "timm-mobilenetv3_large_100":
+                self.encoder.model.blocks[block_idx] = nn.Sequential(
+                    self.encoder.model.blocks[block_idx], block
+                )
+            elif self.encoder_name == "resnet18":
+                layer = getattr(self.encoder, f"layer{block_idx+1}")
+                layer = nn.Sequential(layer, block)
+                setattr(self.encoder, f"layer{block_idx+1}", layer)
 
-        Args:
-            x: 4D torch tensor with shape (batch_size, channels, height, width)
+    def embed_attn_before_se_block(self, window_size, use_attn, use_extra_conv):
+        for block_idx in range(len(self.encoder.model.blocks) - 1):
+            for subblock_idx in range(len(self.encoder.model.blocks[block_idx])):
+                if not isinstance(
+                    self.encoder.model.blocks[block_idx][subblock_idx].se,
+                    nn.Identity,
+                ):
+                    x_dim = self.encoder.model.blocks[block_idx][subblock_idx].se.conv_reduce.in_channels  # fmt: skip
+                else:
+                    x_dim = self.encoder.model.blocks[block_idx][subblock_idx].bn2.bias.numel()  # fmt: skip
 
-        Return:
-            prediction: 4D torch tensor with shape (batch_size, classes, height, width)
+                if use_attn:
+                    block = AttentionBasicBlockB(
+                        x_dim,
+                        x_dim,
+                        stride=1,
+                        heads=4,
+                        window_size=window_size,
+                    )
+                elif use_extra_conv:
+                    block = nn.Sequential(
+                        nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
+                        nn.ReLU(inplace=True),
+                        nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
+                        nn.ReLU(inplace=True),
+                    )
+                    if block_idx > 4:
+                        block = nn.Sequential(
+                            block,
+                            nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
+                            nn.ReLU(inplace=True),
+                        )
+                else:
+                    block = nn.Identity()
+                if self.encoder_name == "timm-mobilenetv3_large_100":
+                    base_block = self.encoder.model.blocks[block_idx][subblock_idx]
+                    new_se_block = nn.Sequential(
+                        block,
+                        base_block.se,
+                    )
+                    base_block.se = new_se_block
 
-        """
-        if self.training:
-            self.eval()
+    def get_deeplsd_pred(self, x):
+        gray_img = x.mean(dim=1, keepdim=True)
+        line_res = self.dlsd(gray_img)
+        return line_res
 
-        x = self.forward(x)
-
-        return x
+    def get_pos_embed_from_df(self, df):
+        num_bins = 100
+        _, edges = torch.histogram(df.flatten().cpu(), bins=num_bins)
+        bin_idxs = torch.bucketize(df.flatten().cpu(), edges).reshape(df.shape)
+        random_embeds = torch.randn(num_bins + 2, 96, device=df.device)
+        new_embeds = random_embeds[bin_idxs].permute(0, 3, 1, 2)
+        return new_embeds
 
 
 if __name__ == "__main__":
