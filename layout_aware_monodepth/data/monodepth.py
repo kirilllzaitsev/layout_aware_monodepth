@@ -206,12 +206,16 @@ class MonodepthDataset(Dataset):
         if self.args.line_filter is not None:
             lines = self.filter_lines(line_detector_res, lines)
 
-        line_embedding = torch.nn.init.orthogonal_(torch.empty(len(lines), 128))
+        line_embedding = torch.nn.init.orthogonal_(
+            torch.empty(len(lines), self.args.line_embed_channels)
+        )
         norm_line_embedding = torch.nn.functional.normalize(
             line_embedding, dim=-1, eps=1e-12, out=None
         )
         fm_size = image.shape[:2]
-        max_line_x, max_line_y = line_detector_res['lines'][0].max(0).max(0).astype(int) + 1
+        max_line_x, max_line_y = (
+            line_detector_res["lines"][0].max(0).max(0).astype(int) + 1
+        )
         fm_size = (max(image.shape[0], max_line_y), max(image.shape[1], max_line_x))
         feature_map = torch.zeros((*fm_size, self.args.line_embed_channels))
 
