@@ -6,6 +6,8 @@ from deeplsd.models.backbones.vgg_unet import VGGUNet
 from deeplsd.models.deeplsd import DeepLSD
 from einops import einsum, rearrange
 
+from layout_aware_monodepth.attn_utils import CrossAttnBlock
+from layout_aware_monodepth.line_utils import CustomDeepLSD, load_custom_deeplsd
 from layout_aware_monodepth.vit import ViT
 
 encoder_to_last_channels_in_level = {
@@ -16,114 +18,6 @@ skip_conn_channels = {
     "timm-mobilenetv3_large_100": [3, 16, 24, 40, 112, 960],
     "resnet18": [16, 64, 64, 128, 256, 512],
 }
-
-
-class CrossAttnBlock(nn.Module):
-    def __init__(self, dim, heads, head_channel, dropout=0.0):
-        super().__init__()
-        inner_dim = heads * head_channel
-        self.heads = heads
-        self.to_k = nn.Linear(dim, inner_dim)
-        self.to_v = nn.Linear(dim, inner_dim)
-        self.attend = nn.Softmax(dim=-1)
-        self.scale = head_channel**-0.5
-
-        self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, head_channel), nn.Dropout(dropout)
-        )
-
-    def forward(self, x, z):
-        b, c, h, w = x.shape
-        # q =  x.reshape(b, c, h*w).transpose(1,2).unsqueeze(1)
-        # k = self.to_k(z).view(b, self.heads, m, c)
-        # v = self.to_v(z).view(b, self.heads, m, c)
-        # dots = q @ k.transpose(2, 3) * self.scale
-        z = rearrange(z, "b c h w -> b (h w) c")
-        q = rearrange(x, "b c h w -> b (h w) c").unsqueeze(1)
-        k = rearrange(self.to_k(z), "b m (h c) -> b h m c", h=self.heads)
-        v = rearrange(self.to_v(z), "b m (h c) -> b h m c", h=self.heads)
-        dots = einsum(q, k, "b h l c, b h m c -> b h l m") * self.scale
-        attn = self.attend(dots)
-        out = attn @ v
-        out = rearrange(out, "b h l c -> b l (h c)")
-        out = self.to_out(out)
-        out = out.view(b, c, h, w)
-        return x + out
-
-
-class SelfAttnBlock(nn.Module):
-    def __init__(self, dim, heads, head_channel, dropout=0.0):
-        super().__init__()
-        inner_dim = heads * head_channel
-        self.heads = heads
-        self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=False)
-        self.attend = nn.Softmax(dim=-1)
-        self.scale = head_channel**-0.5
-
-        self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, head_channel), nn.Dropout(dropout)
-        )
-
-    def forward(self, x, z):
-        b, c, h, w = x.shape
-        x = rearrange(x, "b c h w -> b (h w) c")
-        q, k, v = torch.chunk(self.to_qkv(x), 3, dim=-1)
-        dots = einsum(q, k, "b h l c, b h m c -> b h l m") * self.scale
-        attn = self.attend(dots)
-        out = attn @ v
-        out = rearrange(out, "b h l c -> b l (h c)")
-        out = self.to_out(out)
-        out = out.view(b, c, h, w)
-        return x + out
-
-
-class CustomDeepLSD(DeepLSD):
-    def __init__(self, conf, return_embedding=True):
-        # Base network
-        super().__init__(conf)
-        self.backbone = VGGUNet(tiny=False)
-        dim = 64
-
-        # Predict the distance field and angle to the nearest line
-        # DF head
-        if not return_embedding:
-            self.df_head = nn.Sequential(
-                *self.get_common_backbone(dim),
-                nn.Conv2d(64, 1, kernel_size=1),
-                nn.ReLU(),
-            )
-            # Closest line direction head
-            self.angle_head = nn.Sequential(
-                *self.get_common_backbone(dim),
-                nn.Conv2d(64, 1, kernel_size=1),
-                nn.Sigmoid(),
-            )
-        else:
-            self.df_head = nn.Sequential(
-                *self.get_common_backbone(dim),
-            )
-            self.angle_head = nn.Sequential(
-                *self.get_common_backbone(dim),
-            )
-
-    def get_common_backbone(self, dim):
-        return (
-            nn.Conv2d(dim, 64, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.BatchNorm2d(64),
-            nn.Conv2d(64, 64, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.BatchNorm2d(64),
-        )
-
-    def forward(self, x):
-        base = self.backbone(x)
-        outputs = {}
-        # DF embedding
-        outputs["df_norm"] = self.df_head(base).squeeze(1)
-        # Closest line direction embedding
-        outputs["line_level"] = self.angle_head(base).squeeze(1)
-        return outputs
 
 
 class DepthModel(nn.Module):
@@ -164,20 +58,9 @@ class DepthModel(nn.Module):
         self.encoder = model.encoder
         self.attend_line_info = do_attend_line_info
         if self.attend_line_info or add_df_to_line_info:
-            deeplsd_conf = {
-                "detect_lines": not add_df_to_line_info,
-                "line_detection_params": {
-                    "merge": False,
-                    "filtering": True,
-                    "grad_thresh": 4,
-                    "grad_nfa": True,
-                },
-            }
-            ckpt = "../weights/deeplsd/deeplsd_md.tar"
-            self.dlsd = CustomDeepLSD(
-                deeplsd_conf, return_embedding=return_deeplsd_embedding
+            self.dlsd = load_custom_deeplsd(
+                not add_df_to_line_info, return_deeplsd_embedding
             )
-            self.dlsd.load_state_dict(torch.load(str(ckpt))["model"], strict=False)
 
         self.line_attn_blocks = []
         if self.attend_line_info:
