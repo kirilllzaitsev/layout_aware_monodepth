@@ -37,6 +37,7 @@ class DepthModel(nn.Module):
         line_info_feature_map_kwargs=None,
         add_df_to_line_info=False,
         return_deeplsd_embedding=True,
+        add_df_to_line_info_before_encoder=False,
     ):
         super().__init__()
 
@@ -57,17 +58,27 @@ class DepthModel(nn.Module):
 
         self.encoder = model.encoder
         self.attend_line_info = do_attend_line_info
-        if self.attend_line_info or add_df_to_line_info:
+        self.add_df_to_line_info = add_df_to_line_info
+        if self.attend_line_info or self.add_df_to_line_info:
             self.dlsd = load_custom_deeplsd(
-                not add_df_to_line_info, return_deeplsd_embedding
+                not self.add_df_to_line_info, return_deeplsd_embedding
             )
 
         if self.attend_line_info:
             self.line_attn_blocks = self.create_line_attn_blocks(encoder_name)
 
+        self.add_df_to_line_info_before_encoder = add_df_to_line_info_before_encoder
+        if self.add_df_to_line_info_before_encoder:
+            self.proj_x_and_df_to_encoder_input = nn.Conv2d(
+                in_channels + line_info_feature_map_kwargs["channels"],
+                in_channels,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+            )
+
         use_line_info_as_feature_map = line_info_feature_map_kwargs is not None
         self.use_line_info_as_feature_map = use_line_info_as_feature_map
-        self.add_df_to_line_info = add_df_to_line_info
         if self.use_line_info_as_feature_map:
             self.line_info_extractor = ViT(**line_info_feature_map_kwargs)
             line_info_out_dim = line_info_feature_map_kwargs["dim"]
@@ -94,7 +105,7 @@ class DepthModel(nn.Module):
 
             elif self.encoder_name == "timm-mobilenetv3_large_100":
                 self.embed_attn_before_se_block(window_size, use_attn, use_extra_conv)
-        if self.add_df_to_line_info:
+        if self.add_df_to_line_info and not self.add_df_to_line_info_before_encoder:
             x_dim = decoder_channels[-1] + line_info_feature_map_kwargs["channels"]
             block = AttentionBasicBlockB(
                 x_dim,
@@ -125,6 +136,12 @@ class DepthModel(nn.Module):
     def forward(self, x, line_info=None):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
 
+        if self.add_df_to_line_info and self.add_df_to_line_info_before_encoder:
+            line_res = self.get_deeplsd_pred(x)
+            df_pos_embed = self.get_pos_embed_from_df(line_res["df_norm"])
+            x = torch.cat([x, df_pos_embed], dim=1)
+            x = self.proj_x_and_df_to_encoder_input(x)
+
         features = self.encoder(x)
 
         if self.use_line_info_as_feature_map:
@@ -143,11 +160,7 @@ class DepthModel(nn.Module):
                 )
 
         if self.attend_line_info:
-            if x.shape[1] == 3:
-                grayscale = x.mean(dim=1, keepdim=True)
-            else:
-                grayscale = x
-            line_res = self.dlsd(grayscale)
+            line_res = self.get_deeplsd_pred(x)
             line_res["df_norm"] = self.df_gap(line_res["df_norm"])
             for i in range(len(self.line_attn_blocks)):
                 line_attn_block = self.line_attn_blocks[i]
@@ -157,7 +170,7 @@ class DepthModel(nn.Module):
 
         decoder_output = self.decoder(*features)
 
-        if self.add_df_to_line_info:
+        if self.add_df_to_line_info and not self.add_df_to_line_info_before_encoder:
             line_res = self.get_deeplsd_pred(x)
             df_pos_embed = self.get_pos_embed_from_df(line_res["df_norm"])
             decoder_output = torch.cat([decoder_output, df_pos_embed], dim=1)

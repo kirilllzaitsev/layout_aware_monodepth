@@ -214,6 +214,7 @@ def run(args):
             dim_head=64,
         ),
         add_df_to_line_info=args.add_df_to_line_info,
+        add_df_to_line_info_before_encoder=args.add_df_to_line_info_before_encoder,
         return_deeplsd_embedding=args.return_deeplsd_embedding,
     )
     model.to(device)
@@ -462,6 +463,9 @@ def main():
     model_args_group.add_argument("--do_attend_line_info", action="store_true")
     model_args_group.add_argument("--line_embed_channels", type=int, default=None)
     model_args_group.add_argument("--add_df_to_line_info", action="store_true")
+    model_args_group.add_argument(
+        "--add_df_to_line_info_before_encoder", action="store_true"
+    )
     model_args_group.add_argument(
         "--not_return_deeplsd_embedding",
         dest="return_deeplsd_embedding",
