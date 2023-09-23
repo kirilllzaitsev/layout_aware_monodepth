@@ -206,6 +206,10 @@ class MonodepthDataset(Dataset):
         if self.args.line_filter is not None:
             lines = self.filter_lines(line_detector_res, lines)
 
+        assert (
+            len(lines) > self.args.line_embed_channels
+        ), f"{len(lines)} <= {self.args.line_embed_channels}"
+
         line_embedding = torch.nn.init.orthogonal_(
             torch.empty(len(lines), self.args.line_embed_channels)
         )
