@@ -415,6 +415,8 @@ def main():
     import sys
 
     print("RUNTIME ARGS\n" + " ".join(sys.argv[1:]))
+    if cfg.is_cluster:
+        print(f"{os.environ['SLURM_JOB_ID']=}")
 
     parser = argparse.ArgumentParser()
 
