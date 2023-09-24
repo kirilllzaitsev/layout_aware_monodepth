@@ -1,6 +1,8 @@
 import argparse
+import glob
 import json
 import os
+import re
 
 import matplotlib.pyplot as plt
 import pytorch_lightning as pl
@@ -290,8 +292,16 @@ def run(args):
     global_step = args.global_step
 
     if args.resume_exp:
+        if args.resume_epoch is not None:
+            artifacts_path = f"{exp_dir}/model_{args.resume_epoch}.pth"
+        else:
+            artifacts_path = sorted(
+                glob.glob(f"{exp_dir}/model_*"),
+                key=lambda x: int(re.findall(r".*_(\d+).*", x)[0]),
+                reverse=True,
+            )
         model, optimizer, args.num_epochs = load_ckpt(
-            args.artifacts_path, model, optimizer
+            artifacts_path, model, optimizer
         )
     epoch_bar = tqdm(total=args.num_epochs, leave=False)
 
@@ -475,11 +485,11 @@ def main():
 
     ops_args_group.add_argument("--resume_exp", action="store_true")
     ops_args_group.add_argument("--exp_key")
-    ops_args_group.add_argument("--artifacts_path")
     ops_args_group.add_argument(
         "--not_load_previos_args", dest="load_previos_args", action="store_false"
     )
     ops_args_group.add_argument("--global_step", type=int, default=0)
+    ops_args_group.add_argument("--resume_epoch", type=int, default=None)
 
     model_args_group = parser.add_argument_group("model_args")
     model_args_group.add_argument("--use_attn", action="store_true")
