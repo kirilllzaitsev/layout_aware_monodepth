@@ -126,8 +126,6 @@ def run(args):
                     "resume_epoch": args.resume_epoch,
                 }
             )
-            # for k, v in previos_args["args"].items():
-            #     setattr(args, k, v)
         ds_args = argparse.Namespace(**previos_args["ds_args"])
     else:
         ds_args = load_config(args.ds)
@@ -298,6 +296,7 @@ def run(args):
     experiment.log_parameters({"model/num_params": num_params})
 
     global_step = args.global_step
+    start_epoch = 0
 
     if args.resume_exp:
         if args.resume_epoch is not None:
@@ -308,14 +307,14 @@ def run(args):
                 key=lambda x: int(re.findall(r".*_(\d+).*", x)[0]),
                 reverse=True,
             )
-        model, optimizer, args.num_epochs = load_ckpt(artifacts_path, model, optimizer)
-    epoch_bar = tqdm(total=args.num_epochs, leave=False)
+        model, optimizer, start_epoch = load_ckpt(artifacts_path, model, optimizer)
+    epoch_bar = tqdm(total=args.num_epochs, leave=False, position=start_epoch)
 
     trainer = Trainer(
         args, model, optimizer, criterion, train_loader, val_loader, test_loader
     )
 
-    for epoch in range(args.num_epochs):
+    for epoch in range(start_epoch, args.num_epochs):
         train_batch_bar = tqdm(total=len(train_loader), leave=True)
         val_batch_bar = tqdm(total=len(val_loader), leave=True)
 
