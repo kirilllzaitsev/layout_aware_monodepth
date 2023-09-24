@@ -412,6 +412,10 @@ def run(args):
 
 
 def main():
+    import sys
+
+    print("RUNTIME ARGS\n" + " ".join(sys.argv[1:]))
+
     parser = argparse.ArgumentParser()
 
     ds_args_group = parser.add_argument_group("ds_args")
