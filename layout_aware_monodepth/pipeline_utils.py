@@ -1,4 +1,5 @@
 import argparse
+import glob
 import os
 import random
 
@@ -10,10 +11,9 @@ import yaml
 from layout_aware_monodepth.cfg import cfg
 
 
-def create_tracking_exp(exp_disabled) -> comet_ml.Experiment:
-    experiment = comet_ml.Experiment(
+def create_tracking_exp(args) -> comet_ml.Experiment:
+    exp_init_args = dict(
         api_key="W5npcWDiWeNPoB2OYkQvwQD0C",
-        project_name="layout-aware-monodepth",
         auto_output_logging="simple",
         auto_metric_logging=True,
         auto_param_logging=True,
@@ -22,19 +22,18 @@ def create_tracking_exp(exp_disabled) -> comet_ml.Experiment:
         log_env_gpu=True,
         log_env_cpu=True,
         log_code=False,
-        disabled=exp_disabled,
+        disabled=args.exp_disabled,
     )
+    if args.resume_exp:
+        experiment = comet_ml.ExistingExperiment(
+            **exp_init_args, experiment_key=args.exp_key
+        )
+    else:
+        experiment = comet_ml.Experiment(
+            **exp_init_args, project_name="layout-aware-monodepth"
+        )
 
-    for code_file in [
-        "model.py",
-        "train.py",
-        "train_prototyping.py",
-        "metrics.py",
-        "losses.py",
-        "cfg.py",
-        "postprocessing.py",
-        "data/monodepth.py",
-    ]:
+    for code_file in glob.glob("./*.py"):
         experiment.log_code(code_file)
 
     return experiment
@@ -56,6 +55,7 @@ def log_tags(args, experiment, cfg):
     add_tag(args.do_overfit, "overfit", "full")
     add_tag(args.use_single_sample, "single_sample")
     add_tag(cfg.is_cluster, "cluster")
+    add_tag(args.resume_exp, "resumed")
 
     experiment.add_tags(tags)
 
@@ -68,6 +68,7 @@ def setup_env(seed=1234):
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+    # torch.backends.cudnn.enabled = False
 
 
 def save_model(path, epoch, model, optimizer):
@@ -82,11 +83,12 @@ def save_model(path, epoch, model, optimizer):
     return True
 
 
-def load_model(path, model, optimizer):
+def load_ckpt(path, model, optimizer):
     checkpoint = torch.load(path)
+    epoch = checkpoint["epoch"]
     model.load_state_dict(checkpoint["model_state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-    return model, optimizer
+    return model, optimizer, epoch + 1
 
 
 def load_config(ds_name):

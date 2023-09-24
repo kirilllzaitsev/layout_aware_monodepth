@@ -26,6 +26,7 @@ from layout_aware_monodepth.metrics import RunningAverageDict, calc_metrics
 from layout_aware_monodepth.model import DepthModel
 from layout_aware_monodepth.pipeline_utils import (
     create_tracking_exp,
+    load_ckpt,
     load_config,
     log_tags,
     save_model,
@@ -99,6 +100,39 @@ class Trainer:
 
 def run(args):
     setup_env()
+
+    experiment = create_tracking_exp(args)
+    exp_dir = (
+        f"{cfg.exp_base_dir}/{experiment.name}"
+        if cfg.is_cluster
+        else f"{cfg.exp_base_dir}/exp"
+    )
+    os.makedirs(exp_dir, exist_ok=True)
+    print(f"Experiment dir: {exp_dir}")
+
+    train_args_path = f"{exp_dir}/train_args.yaml"
+
+    if args.resume_exp:
+        previos_args = yaml.safe_load(train_args_path)
+        if args.load_previos_args:
+            for k, v in previos_args["args"].items():
+                setattr(args, k, v)
+            for k, v in previos_args["ds_args"].items():
+                setattr(ds_args, k, v)
+    else:
+        with open(train_args_path, "w") as f:
+            yaml.dump(
+                {"args": vars(args), "ds_args": vars(ds_args)},
+                f,
+                default_flow_style=False,
+            )
+    experiment.log_asset(train_args_path)
+    os.remove("./train_args_latest.yaml")
+    os.symlink(
+        train_args_path,
+        "./train_args_latest.yaml",
+    )
+    log_tags(args, experiment, cfg)
 
     ds_args = load_config(args.ds)
     non_overridden_ds_args = []
@@ -236,30 +270,6 @@ def run(args):
         verbose=True,
     )
 
-    epoch_bar = tqdm(total=args.num_epochs, leave=False)
-    experiment = create_tracking_exp(args.exp_disabled)
-    exp_dir = (
-        f"{cfg.exp_base_dir}/{experiment.name}"
-        if cfg.is_cluster
-        else f"{cfg.exp_base_dir}/exp"
-    )
-    os.makedirs(exp_dir, exist_ok=True)
-    print(f"Experiment dir: {exp_dir}")
-
-    log_tags(args, experiment, cfg)
-
-    train_args_path = f"{exp_dir}/train_args.yaml"
-    with open(train_args_path, "w") as f:
-        yaml.dump(
-            {"args": vars(args), "ds_args": vars(ds_args)}, f, default_flow_style=False
-        )
-    experiment.log_asset(train_args_path)
-    os.remove("./train_args_latest.yaml")
-    os.symlink(
-        train_args_path,
-        "./train_args_latest.yaml",
-    )
-
     log_params_to_exp(
         experiment,
         cfg.params(),
@@ -277,7 +287,13 @@ def run(args):
     )
     experiment.log_parameters({"model/num_params": num_params})
 
-    global_step = 0
+    global_step = args.global_step
+
+    if args.resume_exp:
+        model, optimizer, args.num_epochs = load_ckpt(
+            args.artifacts_path, model, optimizer
+        )
+    epoch_bar = tqdm(total=args.num_epochs, leave=False)
 
     trainer = Trainer(
         args, model, optimizer, criterion, train_loader, val_loader, test_loader
@@ -456,6 +472,14 @@ def main():
     ops_args_group.add_argument("--do_save_model", action="store_true")
     ops_args_group.add_argument("--exp_disabled", action="store_true")
     ops_args_group.add_argument("--exp_tags", nargs="*", default=[])
+
+    ops_args_group.add_argument("--resume_exp", action="store_true")
+    ops_args_group.add_argument("--exp_key")
+    ops_args_group.add_argument("--artifacts_path")
+    ops_args_group.add_argument(
+        "--not_load_previos_args", dest="load_previos_args", action="store_false"
+    )
+    ops_args_group.add_argument("--global_step", type=int, default=0)
 
     model_args_group = parser.add_argument_group("model_args")
     model_args_group.add_argument("--use_attn", action="store_true")
