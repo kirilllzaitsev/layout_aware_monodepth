@@ -117,11 +117,20 @@ def run(args):
     if args.resume_exp:
         previos_args = yaml.safe_load(train_args_path)
         if args.load_previos_args:
-            for k, v in previos_args["args"].items():
-                setattr(args, k, v)
-            for k, v in previos_args["ds_args"].items():
-                setattr(ds_args, k, v)
+            args = argparse.Namespace(
+                **{
+                    **previos_args["args"],
+                    "resume_exp": args.resume_exp,
+                    "exp_key": args.exp_key,
+                    "global_step": args.global_step,
+                    "resume_epoch": args.resume_epoch,
+                }
+            )
+            # for k, v in previos_args["args"].items():
+            #     setattr(args, k, v)
+        ds_args = argparse.Namespace(**previos_args["ds_args"])
     else:
+        ds_args = load_config(args.ds)
         with open(train_args_path, "w") as f:
             yaml.dump(
                 {"args": vars(args), "ds_args": vars(ds_args)},
@@ -136,7 +145,6 @@ def run(args):
     )
     log_tags(args, experiment, cfg)
 
-    ds_args = load_config(args.ds)
     non_overridden_ds_args = []
     for k, v in vars(args).items():
         if hasattr(ds_args, k):
@@ -300,9 +308,7 @@ def run(args):
                 key=lambda x: int(re.findall(r".*_(\d+).*", x)[0]),
                 reverse=True,
             )
-        model, optimizer, args.num_epochs = load_ckpt(
-            artifacts_path, model, optimizer
-        )
+        model, optimizer, args.num_epochs = load_ckpt(artifacts_path, model, optimizer)
     epoch_bar = tqdm(total=args.num_epochs, leave=False)
 
     trainer = Trainer(
