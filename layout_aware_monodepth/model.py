@@ -144,7 +144,8 @@ class DepthModel(nn.Module):
         if self.add_df_to_line_info and self.add_df_to_line_info_before_encoder:
             assert line_info is not None
             line_res = self.get_deeplsd_pred(x)
-            df_pos_embed = self.get_pos_embed_from_df(line_res["df_norm"])
+            # df_pos_embed = self.convert_df_to_feature_map(line_res["df_norm"])
+            df_pos_embed = line_res["df_norm"]
             # line_info, df_pos_embed are of the same shape
             line_info += df_pos_embed
             line_info_embed = self.compound_line_info_extractor(line_info)
