@@ -127,7 +127,33 @@ def plot_batch(b):
     plt.show()
 
 
-def plot_attention(att_mat, img_size):
+
+
+def plot_attention_heatmap(attention_scores, image):
+    num_tokens = 1
+    PATCH_SIZE = 4
+    num_heads = 4
+
+    # Sort the Transformer blocks in order of their depth.
+
+    # Process the attention maps for overlay.
+    w_featmap = image.shape[2] // PATCH_SIZE
+    h_featmap = image.shape[1] // PATCH_SIZE
+
+    # Taking the representations from CLS token.
+    attentions = attention_scores[0, :, 0, num_tokens:].reshape(num_heads, -1)
+
+    # Reshape the attention scores to resemble mini patches.
+    attentions = attentions.reshape(num_heads, w_featmap, h_featmap)
+    attentions = attentions.transpose((1, 2, 0))
+
+    # Resize the attention patches to 224x224 (224: 14x16).
+    attentions = cv2.resize(
+        attentions, dsize=(h_featmap * PATCH_SIZE, w_featmap * PATCH_SIZE)
+    )
+    return attentions
+
+
     # att_mat = torch.stack(att_mat).squeeze(1)
 
     # Average the attention weights across all heads.
