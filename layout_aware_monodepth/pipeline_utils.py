@@ -25,8 +25,12 @@ def create_tracking_exp(args) -> comet_ml.Experiment:
         disabled=args.exp_disabled,
     )
     if args.resume_exp:
+        from comet_ml.api import API
+
+        api = API(api_key="W5npcWDiWeNPoB2OYkQvwQD0C")
+        exp_api = api.get(f"kirilllzaitsev/layout-aware-monodepth/{args.exp_name}")
         experiment = comet_ml.ExistingExperiment(
-            **exp_init_args, experiment_key=args.exp_key
+            **exp_init_args, experiment_key=exp_api.id
         )
     else:
         experiment = comet_ml.Experiment(

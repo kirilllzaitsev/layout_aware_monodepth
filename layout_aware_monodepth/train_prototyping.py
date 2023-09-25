@@ -55,7 +55,8 @@ def run(args):
         ]
         benchmark_batch = train_ds.load_benchmark_batch(benchmark_paths)
 
-    model = init_model(args)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = init_model(args, device)
 
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     lr = args.lr or 5e-4
@@ -104,7 +105,6 @@ def run(args):
         model, optimizer, start_epoch = load_ckpt(artifacts_path, model, optimizer)
     epoch_bar = tqdm(total=args.num_epochs, leave=False, position=start_epoch)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     trainer = Trainer(
         args, model, optimizer, criterion, train_loader, val_loader, test_loader, device
     )
@@ -253,13 +253,13 @@ def prepare_args(args, experiment, exp_dir):
     train_args_path = f"{exp_dir}/train_args.yaml"
 
     if args.resume_exp:
-        previos_args = yaml.safe_load(train_args_path)
+        previos_args = yaml.safe_load(open(train_args_path))
         if args.load_previos_args:
             args = argparse.Namespace(
                 **{
                     **previos_args["args"],
                     "resume_exp": args.resume_exp,
-                    "exp_key": args.exp_key,
+                    "exp_name": args.exp_name,
                     "global_step": args.global_step,
                     "resume_epoch": args.resume_epoch,
                 }
@@ -369,7 +369,7 @@ def create_dataloaders(args, ds_args):
     return train_ds, train_loader, val_loader, test_loader
 
 
-def init_model(args):
+def init_model(args, device):
     img_channels = 1 if args.use_grayscale_img else 3
     model = DepthModel(
         in_channels=img_channels + 1
@@ -452,7 +452,7 @@ def main():
     ops_args_group.add_argument("--exp_tags", nargs="*", default=[])
 
     ops_args_group.add_argument("--resume_exp", action="store_true")
-    ops_args_group.add_argument("--exp_key")
+    ops_args_group.add_argument("--exp_name")
     ops_args_group.add_argument(
         "--not_load_previos_args", dest="load_previos_args", action="store_false"
     )
