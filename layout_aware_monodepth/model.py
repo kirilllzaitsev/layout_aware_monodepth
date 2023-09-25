@@ -2,12 +2,9 @@ import segmentation_models_pytorch as smp
 import torch
 import torch.nn as nn
 from alternet.models.alternet import AttentionBasicBlockB
-from deeplsd.models.backbones.vgg_unet import VGGUNet
-from deeplsd.models.deeplsd import DeepLSD
-from einops import einsum, rearrange
 
 from layout_aware_monodepth.attn_utils import CrossAttnBlock
-from layout_aware_monodepth.line_utils import CustomDeepLSD, load_custom_deeplsd
+from layout_aware_monodepth.line_utils import load_custom_deeplsd
 from layout_aware_monodepth.vit import ViT
 
 encoder_to_last_channels_in_level = {
@@ -69,6 +66,14 @@ class DepthModel(nn.Module):
 
         self.add_df_to_line_info_before_encoder = add_df_to_line_info_before_encoder
         if self.add_df_to_line_info_before_encoder:
+            self.compound_line_info_extractor = AttentionBasicBlockB(
+                line_info_feature_map_kwargs["channels"],
+                line_info_feature_map_kwargs["channels"],
+                stride=1,
+                heads=4,
+                window_size=8,
+                use_pos_emb=True,
+            )
             self.proj_x_and_df_to_encoder_input = nn.Conv2d(
                 in_channels + line_info_feature_map_kwargs["channels"],
                 in_channels,
@@ -137,14 +142,21 @@ class DepthModel(nn.Module):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
 
         if self.add_df_to_line_info and self.add_df_to_line_info_before_encoder:
+            assert line_info is not None
             line_res = self.get_deeplsd_pred(x)
             df_pos_embed = self.get_pos_embed_from_df(line_res["df_norm"])
-            x = torch.cat([x, df_pos_embed], dim=1)
+            # line_info, df_pos_embed are of the same shape
+            line_info += df_pos_embed
+            line_info_embed = self.compound_line_info_extractor(line_info)
+            x = torch.cat([x, line_info_embed], dim=1)
             x = self.proj_x_and_df_to_encoder_input(x)
 
         features = self.encoder(x)
 
-        if self.use_line_info_as_feature_map:
+        if (
+            self.use_line_info_as_feature_map
+            and not self.add_df_to_line_info_before_encoder
+        ):
             assert line_info is not None
             line_info_embed = self.line_info_extractor(line_info)
             if not self.add_df_to_line_info:
@@ -230,6 +242,7 @@ class DepthModel(nn.Module):
                         window_size=window_size,
                     )
                 elif use_extra_conv:
+                    # compare how 1x1 conv blocks perform vs attn blocks
                     block = nn.Sequential(
                         nn.Conv2d(x_dim, x_dim, kernel_size=1, padding=0),
                         nn.ReLU(inplace=True),
