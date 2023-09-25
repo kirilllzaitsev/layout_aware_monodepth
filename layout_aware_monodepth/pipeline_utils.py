@@ -75,9 +75,10 @@ def setup_env(seed=1234):
     # torch.backends.cudnn.enabled = False
 
 
-def save_model(path, epoch, model, optimizer):
+def save_model(path, epoch, model, optimizer, global_step):
     torch.save(
         {
+            "global_step": global_step,
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
@@ -92,7 +93,14 @@ def load_ckpt(path, model, optimizer):
     epoch = checkpoint["epoch"]
     model.load_state_dict(checkpoint["model_state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-    return model, optimizer, epoch + 1
+    res = {
+        "model": model,
+        "optimizer": optimizer,
+        "epoch": epoch + 1,
+    }
+    if "global_step" in checkpoint:
+        res["global_step"] = checkpoint["global_step"] + 1
+    return res
 
 
 def load_config(ds_name):

@@ -101,8 +101,13 @@ def run(args):
                 glob.glob(f"{exp_dir}/model_*"),
                 key=lambda x: int(re.findall(r".*_(\d+).*", x)[0]),
                 reverse=True,
-            )
-        model, optimizer, start_epoch = load_ckpt(artifacts_path, model, optimizer)
+            )[0]
+        ckpt = load_ckpt(artifacts_path, model, optimizer)
+        model = ckpt["model"]
+        optimizer = ckpt["optimizer"]
+        start_epoch = ckpt["epoch"]
+        global_step = ckpt.get("global_step", global_step)
+
     epoch_bar = tqdm(total=args.num_epochs, leave=False, position=start_epoch)
 
     trainer = Trainer(
@@ -182,7 +187,7 @@ def run(args):
             and ((epoch - 1) % args.save_freq_epochs == 0 or is_last_epoch)
         ):
             save_path = f"{exp_dir}/model_{epoch}.pth"
-            save_model(save_path, epoch, model, optimizer)
+            save_model(save_path, epoch, model, optimizer, global_step)
             experiment.log_model(f"depth_model_{epoch}", save_path, overwrite=False)
             print(f"Saved model to {save_path}")
 
