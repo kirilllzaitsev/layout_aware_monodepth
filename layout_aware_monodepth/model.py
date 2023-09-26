@@ -271,11 +271,12 @@ class DepthModel(nn.Module):
         line_res = self.dlsd(gray_img)
         return line_res
 
-    def get_pos_embed_from_df(self, df):
-        num_bins = 100
+    def convert_df_to_feature_map(self, df):
+        embed_channels = 96
+        num_bins = embed_channels - 2
         _, edges = torch.histogram(df.flatten().cpu(), bins=num_bins)
         bin_idxs = torch.bucketize(df.flatten().cpu(), edges).reshape(df.shape)
-        random_embeds = torch.randn(num_bins + 2, 96, device=df.device)
+        random_embeds = torch.nn.init.orthogonal_(torch.empty(num_bins + 2, embed_channels)).to(df.device)
         new_embeds = random_embeds[bin_idxs].permute(0, 3, 1, 2)
         return new_embeds
 
