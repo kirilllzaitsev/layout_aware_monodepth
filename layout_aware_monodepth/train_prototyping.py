@@ -68,8 +68,8 @@ def run(args):
     scheduler = optim.lr_scheduler.LinearLR(
         optimizer,
         start_factor=1.0,
-        end_factor=1e-3,
-        total_iters=args.num_epochs,
+        end_factor=1e-2,
+        total_iters=10,
         verbose=True,
     )
 
