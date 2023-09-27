@@ -147,7 +147,7 @@ class DepthModel(nn.Module):
             # df_pos_embed = self.convert_df_to_feature_map(line_res["df_norm"])
             df_pos_embed = line_res["df_norm"]
             # line_info, df_pos_embed are of the same shape
-            line_info += df_pos_embed.unsqueeze(1)
+            line_info += df_pos_embed.unsqueeze(1) / 25
             line_info_embed = self.compound_line_info_extractor(line_info)
             x = torch.cat([x, line_info_embed], dim=1)
             x = self.proj_x_and_df_to_encoder_input(x)
