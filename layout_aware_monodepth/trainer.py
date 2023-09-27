@@ -9,7 +9,7 @@ from layout_aware_monodepth.postprocessing import (
 
 class Trainer:
     def __init__(
-        self, args, model, optimizer, criterion, train_loader, val_loader, test_loader, device
+        self, args, model, optimizer, criterion, train_loader, val_loader, test_loader, device, max_depth=None
     ):
         self.model = model
         self.optimizer = optimizer
@@ -19,6 +19,7 @@ class Trainer:
         self.test_loader = test_loader
         self.args = args
         self.device = device
+        self.depth_magnitude_factor = max_depth
 
     def train_step(self, model, batch, criterion, optimizer):
         model.train()
@@ -61,5 +62,5 @@ class Trainer:
                 crop_type=self.args.crop_type,
                 ds_name=self.args.ds,
             )
-            metrics = calc_metrics(pred, y, mask=eval_mask)
+            metrics = calc_metrics(pred, y, mask=eval_mask, depth_magnitude_factor=self.depth_magnitude_factor)
             return {**result, **metrics}
