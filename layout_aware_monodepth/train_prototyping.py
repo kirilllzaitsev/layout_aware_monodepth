@@ -150,7 +150,7 @@ def run(args):
             global_step += 1
             log_metric(experiment, train_metrics, global_step, prefix="step")
             train_metrics_avg.update(train_metrics)
-            scheduler.step()
+        scheduler.step()
 
         for val_batch in val_loader:
             val_step_res = trainer.eval_step(model, val_batch, criterion)
