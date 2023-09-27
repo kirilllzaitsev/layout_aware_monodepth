@@ -59,7 +59,7 @@ def run(args):
     model = init_model(args, device)
 
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    lr = args.lr or 5e-4
+    lr = args.lr
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = SILogLoss()
     early_stopper = EarlyStopper(
@@ -111,7 +111,15 @@ def run(args):
     epoch_bar = tqdm(total=args.num_epochs, leave=False, position=start_epoch)
 
     trainer = Trainer(
-        args, model, optimizer, criterion, train_loader, val_loader, test_loader, device
+        args,
+        model,
+        optimizer,
+        criterion,
+        train_loader,
+        val_loader,
+        test_loader,
+        device,
+        max_depth=train_ds.max_depth,
     )
 
     for epoch in range(start_epoch, args.num_epochs):
@@ -142,7 +150,7 @@ def run(args):
             global_step += 1
             log_metric(experiment, train_metrics, global_step, prefix="step")
             train_metrics_avg.update(train_metrics)
-            # scheduler.step()
+            scheduler.step()
 
         for val_batch in val_loader:
             val_step_res = trainer.eval_step(model, val_batch, criterion)
@@ -487,7 +495,7 @@ def main():
 
     optim_args_group = parser.add_argument_group("optim_args")
     optim_args_group.add_argument("--num_epochs", type=int, default=20)
-    optim_args_group.add_argument("--lr", type=float, default=None)
+    optim_args_group.add_argument("--lr", type=float, default=5e-4)
 
     args = parser.parse_args()
     if args.use_attn_before_se:
