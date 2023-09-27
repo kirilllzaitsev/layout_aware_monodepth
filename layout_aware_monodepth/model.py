@@ -1,7 +1,8 @@
+import torchvision.transforms.functional as fn
 import segmentation_models_pytorch as smp
 import torch
 import torch.nn as nn
-from alternet.models.alternet import AttentionBasicBlockB
+from alternet.models.alternet import AttentionBasicBlockB, AttentionBlockB
 
 from layout_aware_monodepth.attn_utils import CrossAttnBlock
 from layout_aware_monodepth.line_utils import load_custom_deeplsd
@@ -128,16 +129,6 @@ class DepthModel(nn.Module):
         self.decoder = model.decoder
         self.df_gap = nn.AdaptiveAvgPool2d((8, 8))
 
-    def create_line_attn_blocks(self, encoder_name):
-        line_attn_blocks = []
-        skip_conn_channel_spec = skip_conn_channels[encoder_name]
-        for block_idx in range(len(skip_conn_channel_spec)):
-            x_dim = skip_conn_channel_spec[block_idx]
-            if block_idx % 2 == 1:
-                block = CrossAttnBlock(dim=64, heads=4, head_channel=x_dim)
-                line_attn_blocks.append(block)
-        return nn.ModuleList(line_attn_blocks)
-
     def forward(self, x, line_info=None):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
 
@@ -148,7 +139,9 @@ class DepthModel(nn.Module):
             df_pos_embed = line_res["df_norm"]
             # line_info, df_pos_embed are of the same shape
             line_info += df_pos_embed.unsqueeze(1) / 25
+            line_info = fn.resize(line_info, [i//2 for i in x.shape[-2:]], antialias=True)
             line_info_embed = self.compound_line_info_extractor(line_info)
+            line_info_embed = fn.resize(line_info_embed, x.shape[-2:], antialias=True)
             x = torch.cat([x, line_info_embed], dim=1)
             x = self.proj_x_and_df_to_encoder_input(x)
 
@@ -185,12 +178,23 @@ class DepthModel(nn.Module):
 
         if self.add_df_to_line_info and not self.add_df_to_line_info_before_encoder:
             line_res = self.get_deeplsd_pred(x)
-            df_pos_embed = self.get_pos_embed_from_df(line_res["df_norm"])
+            # TODO: what is happening here? does it make sense?
+            df_pos_embed = self.convert_df_to_feature_map(line_res["df_norm"])
             decoder_output = torch.cat([decoder_output, df_pos_embed], dim=1)
 
         depth = self.depth_head(decoder_output)
 
         return depth
+
+    def create_line_attn_blocks(self, encoder_name):
+        line_attn_blocks = []
+        skip_conn_channel_spec = skip_conn_channels[encoder_name]
+        for block_idx in range(len(skip_conn_channel_spec)):
+            x_dim = skip_conn_channel_spec[block_idx]
+            if block_idx % 2 == 1:
+                block = CrossAttnBlock(dim=64, heads=4, head_channel=x_dim)
+                line_attn_blocks.append(block)
+        return nn.ModuleList(line_attn_blocks)
 
     def embed_attn_after_se_block(
         self, window_size, use_attn, use_extra_conv, encoder_channel_spec
