@@ -55,8 +55,12 @@ class TotalMetric(Metric):
         return self.mae, self.rmse, self.imae, self.irmse
 
 
-def calc_metrics(gt, pred, mask=None, min_depth=1e-3):
+def calc_metrics(gt, pred, mask=None, min_depth=1e-3, depth_magnitude_factor=None):
     """Computes relevant metrics on non-zero pixels on ground truth depth map."""
+    if depth_magnitude_factor is not None:
+        gt = gt * depth_magnitude_factor
+        pred = pred * depth_magnitude_factor
+
     if mask is None:
         mask = gt > min_depth
 
@@ -64,7 +68,7 @@ def calc_metrics(gt, pred, mask=None, min_depth=1e-3):
         gt = gt.cpu().numpy()
     if isinstance(pred, torch.Tensor):
         pred = pred.detach().cpu().numpy()
-    
+
     gt = gt[mask]
     pred = pred[mask]
 
