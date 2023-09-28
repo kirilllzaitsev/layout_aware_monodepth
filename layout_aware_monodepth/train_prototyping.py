@@ -226,8 +226,6 @@ def run(args):
             )
             break
 
-        scheduler.step()
-
     experiment.add_tags(["finished"])
     experiment.end()
 
