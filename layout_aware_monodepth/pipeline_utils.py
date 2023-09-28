@@ -60,6 +60,7 @@ def log_tags(args, experiment, cfg):
     add_tag(args.use_single_sample, "single_sample")
     add_tag(cfg.is_cluster, "cluster")
     add_tag(args.resume_exp, "resumed")
+    add_tag('mobilenet' in args.backbone, "mobilenet", "resnet18")
 
     experiment.add_tags(tags)
 
