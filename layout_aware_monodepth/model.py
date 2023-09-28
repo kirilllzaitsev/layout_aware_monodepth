@@ -2,6 +2,7 @@ import torchvision.transforms.functional as fn
 import segmentation_models_pytorch as smp
 import torch
 import torch.nn as nn
+import torchvision.transforms.functional as fn
 from alternet.models.alternet import AttentionBasicBlockB, AttentionBlockB
 
 from layout_aware_monodepth.attn_utils import CrossAttnBlock
@@ -137,10 +138,24 @@ class DepthModel(nn.Module):
             line_res = self.get_deeplsd_pred(x)
             # df_pos_embed = self.convert_df_to_feature_map(line_res["df_norm"])
             df_pos_embed = line_res["df_norm"]
+            df_pos_embed /= 25
+
+            df_pos_embed = fn.resize(
+                df_pos_embed,
+                (
+                    self.compound_line_info_extractor_window_size**2,
+                    self.compound_line_info_extractor_window_size**2,
+                ),
+                antialias=True,
+            )
             # line_info, df_pos_embed are of the same shape
-            line_info += df_pos_embed.unsqueeze(1) / 25
-            line_info = fn.resize(line_info, [i//2 for i in x.shape[-2:]], antialias=True)
-            line_info_embed = self.compound_line_info_extractor(line_info)
+            # line_info += df_pos_embed.unsqueeze(1) / 25
+            line_info = fn.resize(
+                line_info, [i // 2 for i in x.shape[-2:]], antialias=True
+            )
+            line_info_embed = self.compound_line_info_extractor(
+                line_info, pos_embedding=df_pos_embed
+            )
             line_info_embed = fn.resize(line_info_embed, x.shape[-2:], antialias=True)
             x = torch.cat([x, line_info_embed], dim=1)
             x = self.proj_x_and_df_to_encoder_input(x)
