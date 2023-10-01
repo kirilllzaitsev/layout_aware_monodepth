@@ -127,37 +127,82 @@ def plot_batch(b):
     plt.show()
 
 
+def plot_attention(*args, method="rollout", **kwargs):
+    if method == "rollout":
+        return plot_attention_rollout(*args, **kwargs)
+    elif method == "heatmap":
+        return plot_attention_heatmap(*args, **kwargs)
+    else:
+        raise ValueError(f"Unknown attention method {method}")
 
 
-def plot_attention_heatmap(attention_scores, image):
-    num_tokens = 1
+def plot_attention_heatmap(attention_scores, img_h, img_w):
+    num_tokens = 0
     PATCH_SIZE = 4
     num_heads = 4
 
+    # (4, 192, 64)
+    # torch.Size([3072, 4, 16, 16])
+
+    # image = torch.randn(1, 3, 256, 256)
+    # image = torch.randn(1, 3, 64*2, 192*2)
+    # image = torch.randn(1, 3, 256 // 4, 768 // 4)
+    # Process the attention maps for overlay.
+    w_featmap = img_w // PATCH_SIZE
+    h_featmap = img_h // PATCH_SIZE
+    # attention_scores = torch.randn(
+    #     # 3072, num_heads, PATCH_SIZE, PATCH_SIZE
+    #     # 1 * w_featmap * h_featmap, num_heads, PATCH_SIZE, PATCH_SIZE
+    #     1 * w_featmap * h_featmap,
+    #     num_heads,
+    #     PATCH_SIZE**2,
+    #     PATCH_SIZE**2,
+    # )
+
     # Sort the Transformer blocks in order of their depth.
 
-    # Process the attention maps for overlay.
-    w_featmap = image.shape[2] // PATCH_SIZE
-    h_featmap = image.shape[1] // PATCH_SIZE
-
+    # w_featmap,h_featmap=192*2//4,64*2//4
     # Taking the representations from CLS token.
-    attentions = attention_scores[0, :, 0, num_tokens:].reshape(num_heads, -1)
+    # BxNxHxW
+    attention_scores = rearrange(
+        attention_scores,
+        # TODO: the following line is wrong
+        "(b n1 n2) c p1 p2 -> b c (n1 p1) (n2 p2)",
+        n1=w_featmap,
+        n2=h_featmap,
+    )
+    # BxNxHxW
+    attentions = attention_scores[0, :, 0, num_tokens:].reshape(
+        num_heads, w_featmap, h_featmap
+    )
 
     # Reshape the attention scores to resemble mini patches.
-    attentions = attentions.reshape(num_heads, w_featmap, h_featmap)
-    attentions = attentions.transpose((1, 2, 0))
+    attentions = attentions.permute((1, 2, 0))
 
     # Resize the attention patches to 224x224 (224: 14x16).
-    attentions = cv2.resize(
-        attentions, dsize=(h_featmap * PATCH_SIZE, w_featmap * PATCH_SIZE)
-    )
+    dsize = (img_h, img_w)
+    # dsize = (h_featmap * PATCH_SIZE, w_featmap * PATCH_SIZE)
+    # attentions = (attentions - attentions.min()) / (attentions.max() - attentions.min())
+    attentions = cv2.resize(attentions.numpy(), dsize=dsize)
     return attentions
 
-
+def plot_attention_rollout(att_mat, img_size, heads_agg="mean"):
     # att_mat = torch.stack(att_mat).squeeze(1)
 
-    # Average the attention weights across all heads.
-    att_mat = torch.mean(att_mat, dim=1)
+    if heads_agg == "mean":
+        # Average the attention weights across all heads.
+        att_mat = torch.mean(att_mat, dim=1)
+    elif heads_agg == "min":
+        # Take the maximum across all heads.
+        att_mat = torch.min(att_mat, dim=1)[0]
+    elif heads_agg == "max":
+        # Take the maximum across all heads.
+        att_mat = torch.max(att_mat, dim=1)[0]
+    elif heads_agg == "last":
+        # Take the last head.
+        att_mat = att_mat[:, -1]
+    else:
+        raise ValueError(f"Unknown heads_agg {heads_agg}")
 
     # To account for residual connections, we add an identity matrix to the
     # attention matrix and re-normalize the weights.
