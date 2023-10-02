@@ -127,6 +127,20 @@ class DepthModel(nn.Module):
             )
         else:
             self.depth_head = model.segmentation_head
+
+        self.use_df_to_postproc_depth = use_df_to_postproc_depth
+        if self.use_df_to_postproc_depth:
+            self.postproc_depth_layer = AttentionBasicBlockB(
+                16+1,
+                1,
+                stride=1,
+                heads=12,
+                window_size=8,
+                # window_size=4,
+                norm=nn.LayerNorm,
+                use_pos_emb=True,
+            )
+
         self.decoder = model.decoder
         self.df_gap = nn.AdaptiveAvgPool2d((8, 8))
 
@@ -193,11 +207,16 @@ class DepthModel(nn.Module):
 
         if self.add_df_to_line_info and not self.add_df_to_line_info_before_encoder:
             line_res = self.get_deeplsd_pred(x)
-            # TODO: what is happening here? does it make sense?
-            df_pos_embed = self.convert_df_to_feature_map(line_res["df_norm"])
-            decoder_output = torch.cat([decoder_output, df_pos_embed], dim=1)
+            df_embed = self.convert_df_to_feature_map(line_res["df_norm"])
+            decoder_output = torch.cat([decoder_output, df_embed], dim=1)
 
-        depth = self.depth_head(decoder_output)
+        if self.use_df_to_postproc_depth:
+            line_res = self.get_deeplsd_pred(x)
+            df_embed = line_res["df_norm"] / 25
+            depth = torch.cat([decoder_output, df_embed.unsqueeze(1)], dim=1)
+            depth = self.postproc_depth_layer(depth)
+        else:
+            depth = self.depth_head(decoder_output)
 
         return depth
 
