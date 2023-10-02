@@ -1,4 +1,3 @@
-import torchvision.transforms.functional as fn
 import segmentation_models_pytorch as smp
 import torch
 import torch.nn as nn
@@ -37,6 +36,9 @@ class DepthModel(nn.Module):
         add_df_to_line_info=False,
         return_deeplsd_embedding=True,
         add_df_to_line_info_before_encoder=False,
+        use_df_as_self_attn_pos_embed=False,
+        use_df_as_feature_map=False,
+        use_df_to_postproc_depth=False,
     ):
         super().__init__()
 
@@ -68,12 +70,14 @@ class DepthModel(nn.Module):
 
         self.add_df_to_line_info_before_encoder = add_df_to_line_info_before_encoder
         if self.add_df_to_line_info_before_encoder:
+            self.compound_line_info_extractor_window_size = 8
             self.compound_line_info_extractor = AttentionBasicBlockB(
                 line_info_feature_map_kwargs["channels"],
                 line_info_feature_map_kwargs["channels"],
                 stride=1,
                 heads=4,
-                window_size=8,
+                window_size=self.compound_line_info_extractor_window_size,
+                norm=nn.LayerNorm,
                 use_pos_emb=True,
             )
             self.proj_x_and_df_to_encoder_input = nn.Conv2d(
@@ -143,6 +147,8 @@ class DepthModel(nn.Module):
 
         self.decoder = model.decoder
         self.df_gap = nn.AdaptiveAvgPool2d((8, 8))
+        self.use_df_as_self_attn_pos_embed = use_df_as_self_attn_pos_embed
+        self.use_df_as_feature_map = use_df_as_feature_map
 
     def forward(self, x, line_info=None):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
@@ -150,25 +156,27 @@ class DepthModel(nn.Module):
         if self.add_df_to_line_info and self.add_df_to_line_info_before_encoder:
             assert line_info is not None
             line_res = self.get_deeplsd_pred(x)
-            # df_pos_embed = self.convert_df_to_feature_map(line_res["df_norm"])
-            df_pos_embed = line_res["df_norm"]
-            df_pos_embed /= 25
 
-            df_pos_embed = fn.resize(
-                df_pos_embed,
-                (
-                    self.compound_line_info_extractor_window_size**2,
-                    self.compound_line_info_extractor_window_size**2,
-                ),
-                antialias=True,
-            )
-            # line_info, df_pos_embed are of the same shape
-            # line_info += df_pos_embed.unsqueeze(1) / 25
+            df_embed = None
+            if self.use_df_as_self_attn_pos_embed:
+                df_embed = line_res["df_norm"] / 25
+                df_embed = fn.resize(
+                    df_embed,
+                    (
+                        self.compound_line_info_extractor_window_size**2,
+                        self.compound_line_info_extractor_window_size**2,
+                    ),
+                    antialias=True,
+                )
+            elif self.use_df_as_feature_map:
+                df_feature_map = self.convert_df_to_feature_map(line_res["df_norm"])
+                line_info += df_feature_map.unsqueeze(1)
+
             line_info = fn.resize(
                 line_info, [i // 2 for i in x.shape[-2:]], antialias=True
             )
             line_info_embed = self.compound_line_info_extractor(
-                line_info, pos_embedding=df_pos_embed
+                line_info, pos_embedding=df_embed
             )
             line_info_embed = fn.resize(line_info_embed, x.shape[-2:], antialias=True)
             x = torch.cat([x, line_info_embed], dim=1)
@@ -197,6 +205,7 @@ class DepthModel(nn.Module):
         if self.attend_line_info:
             line_res = self.get_deeplsd_pred(x)
             line_res["df_norm"] = self.df_gap(line_res["df_norm"])
+            # TODO: how to make df and features cross-attn sensible? (now it is not)
             for i in range(len(self.line_attn_blocks)):
                 line_attn_block = self.line_attn_blocks[i]
                 features[i * 2 + 1] = line_attn_block(
@@ -314,7 +323,9 @@ class DepthModel(nn.Module):
         num_bins = embed_channels - 2
         _, edges = torch.histogram(df.flatten().cpu(), bins=num_bins)
         bin_idxs = torch.bucketize(df.flatten().cpu(), edges).reshape(df.shape)
-        random_embeds = torch.nn.init.orthogonal_(torch.empty(num_bins + 2, embed_channels)).to(df.device)
+        random_embeds = torch.nn.init.orthogonal_(
+            torch.empty(num_bins + 2, embed_channels)
+        ).to(df.device)
         new_embeds = random_embeds[bin_idxs].permute(0, 3, 1, 2)
         return new_embeds
 

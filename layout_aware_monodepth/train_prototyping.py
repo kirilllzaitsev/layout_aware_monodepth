@@ -412,7 +412,8 @@ def init_model(args, device):
         return_deeplsd_embedding=args.return_deeplsd_embedding,
     )
     model.to(device)
-    model.dlsd.to(device)
+    if hasattr(model, "dlsd"):
+        model.dlsd.to(device)
     return model
 
 
@@ -478,6 +479,11 @@ def main():
         "--decoder_attention_type", default=None, choices=["scse"]
     )
     model_args_group.add_argument("--use_attn_before_se", action="store_true")
+    model_args_group.add_argument(
+        "--use_df_as_self_attn_pos_embed", action="store_true"
+    )
+    model_args_group.add_argument("--use_df_as_feature_map", action="store_true")
+    model_args_group.add_argument("--use_df_to_postproc_depth", action="store_true")
     model_args_group.add_argument("--window_size", type=int, default=4)
     model_args_group.add_argument("--do_attend_line_info", action="store_true")
     model_args_group.add_argument("--line_embed_channels", type=int, default=None)
