@@ -278,6 +278,10 @@ def prepare_args(args, experiment, exp_dir):
         ds_args = argparse.Namespace(**previos_args["ds_args"])
     else:
         ds_args = load_config(args.ds)
+
+    upd_ds_args_with_runtime_args(args, ds_args)
+
+    if not args.resume_exp:
         with open(train_args_path, "w") as f:
             yaml.dump(
                 {"args": vars(args), "ds_args": vars(ds_args)},
@@ -292,7 +296,6 @@ def prepare_args(args, experiment, exp_dir):
     )
     log_tags(args, experiment, cfg)
 
-    upd_ds_args_with_runtime_args(args, ds_args)
     return args, ds_args
 
 
