@@ -42,7 +42,7 @@ class MonodepthDataset(Dataset):
         self.split = split
         self.transform = transform
         self.do_augment = do_augment
-        self.target_shape = args.target_shape
+        self.target_shape = self.args.target_shape
         self.to_tensor = ToTensor
         self.filenames = []
         self.data_dir = self.args.data_path
@@ -331,6 +331,11 @@ class KITTIDataset(MonodepthDataset):
                 self.filenames = json_data[self.mode]
 
     def load_img_and_depth(self, paths_map):
+        image_path, depth_path = self.load_paths(paths_map)
+
+        return self.load_img_and_depth_from_path(image_path, depth_path)
+
+    def load_paths(self, paths_map):
         rgb_path = (
             self.from_local_path_to_cluster(paths_map["rgb"])
             if cfg.is_cluster
@@ -380,7 +385,7 @@ class KITTIDataset(MonodepthDataset):
                 self.data_dir, "data_depth_annotated", paths_map["gt"]
             )
 
-        return self.load_img_and_depth_from_path(image_path, depth_path)
+        return image_path, depth_path
 
     def from_local_path_to_cluster(self, path):
         # example: train/2011_09_26_drive_0002_sync
