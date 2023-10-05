@@ -23,7 +23,7 @@ class Trainer:
 
     def train_step(self, model, batch, criterion, optimizer):
         model.train()
-        y = batch["depth"].permute(0, 3, 1, 2).to(self.device)
+        y = batch["depth"].to(self.device)
         optimizer.zero_grad()
         out = self.model_forward(model, batch)
         loss = criterion(out, y)
