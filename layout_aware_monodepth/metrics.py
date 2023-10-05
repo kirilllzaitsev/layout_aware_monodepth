@@ -2,6 +2,11 @@ import numpy as np
 import torch
 from torchmetrics import Metric, MultioutputWrapper
 
+from layout_aware_monodepth.postprocessing import (
+    compute_eval_mask,
+    postproc_eval_depths,
+)
+
 
 class iRMSE(Metric):
     def __init__(self):
@@ -138,6 +143,24 @@ class RunningAverageDict:
 
     def __str__(self):
         return str(self.get_value())
+
+
+def get_metrics(pred, y, max_depth, min_depth=1e-3, crop_type=None, ds_name=None):
+    pred, y = postproc_eval_depths(
+        pred,
+        y,
+        min_depth=min_depth,
+        max_depth=max_depth,
+    )
+    eval_mask = compute_eval_mask(
+        y,
+        min_depth=min_depth,
+        max_depth=max_depth,
+        crop_type=crop_type,
+        ds_name=ds_name,
+    )
+    metrics = calc_metrics(pred, y, mask=eval_mask, depth_magnitude_factor=max_depth)
+    return metrics
 
 
 if __name__ == "__main__":

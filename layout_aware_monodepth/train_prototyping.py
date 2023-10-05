@@ -19,6 +19,7 @@ from layout_aware_monodepth.logging_utils import log_metric, log_params_to_exp
 from layout_aware_monodepth.losses import SILogLoss
 from layout_aware_monodepth.metrics import RunningAverageDict
 from layout_aware_monodepth.model import DepthModel
+from layout_aware_monodepth.models.dnet.dnet import init_dnet
 from layout_aware_monodepth.pipeline_utils import (
     create_tracking_exp,
     load_ckpt,
@@ -56,7 +57,18 @@ def run(args):
         benchmark_batch = train_ds.load_benchmark_batch(benchmark_paths)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = init_model(args, device)
+    if args.use_dnet:
+        model = init_dnet(
+            params_path="./models/dnet/arguments_train_kitti_eigen_debug.txt"
+        )
+        model.to(device)
+    else:
+        model, model_kwargs = init_model(args, device)
+        with open(f"{exp_dir}/model_kwargs.yaml", "w") as f:
+            yaml.dump(
+                model_kwargs,
+                f,
+            )
 
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     lr = args.lr
@@ -115,11 +127,7 @@ def run(args):
         model,
         optimizer,
         criterion,
-        train_loader,
-        val_loader,
-        test_loader,
         device,
-        max_depth=train_ds.max_depth,
     )
 
     for epoch in range(start_epoch, args.num_epochs):
@@ -385,7 +393,7 @@ def create_dataloaders(args, ds_args):
 
 def init_model(args, device):
     img_channels = 1 if args.use_grayscale_img else 3
-    model = DepthModel(
+    model_kwargs = dict(
         in_channels=img_channels + 1
         if args.line_op in ["concat", "concat_binary"]
         else img_channels,
@@ -414,10 +422,11 @@ def init_model(args, device):
         add_df_to_line_info_before_encoder=args.add_df_to_line_info_before_encoder,
         return_deeplsd_embedding=args.return_deeplsd_embedding,
     )
+    model = DepthModel(**model_kwargs)
     model.to(device)
     if hasattr(model, "dlsd"):
         model.dlsd.to(device)
-    return model
+    return model, model_kwargs
 
 
 def main():
@@ -475,6 +484,7 @@ def main():
     ops_args_group.add_argument("--resume_epoch", type=int, default=None)
 
     model_args_group = parser.add_argument_group("model_args")
+    model_args_group.add_argument("--use_dnet", action="store_true")
     model_args_group.add_argument("--use_attn", action="store_true")
     model_args_group.add_argument("--use_extra_conv", action="store_true")
     model_args_group.add_argument("--backbone", default="timm-mobilenetv3_large_100")

@@ -63,7 +63,7 @@ def load_custom_deeplsd(detect_lines, return_deeplsd_embedding):
             "grad_nfa": True,
         },
     }
-    ckpt = "../weights/deeplsd/deeplsd_md.tar"
+    ckpt = "../artifacts/deeplsd/deeplsd_md.tar"
     dlsd = CustomDeepLSD(deeplsd_conf, return_embedding=return_deeplsd_embedding)
     dlsd.load_state_dict(torch.load(str(ckpt))["model"], strict=False)
     return dlsd

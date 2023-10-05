@@ -1,6 +1,6 @@
 import torch
 
-from layout_aware_monodepth.metrics import calc_metrics
+from layout_aware_monodepth.metrics import calc_metrics, get_metrics
 from layout_aware_monodepth.postprocessing import (
     compute_eval_mask,
     postproc_eval_depths,
@@ -9,17 +9,18 @@ from layout_aware_monodepth.postprocessing import (
 
 class Trainer:
     def __init__(
-        self, args, model, optimizer, criterion, train_loader, val_loader, test_loader, device, max_depth=None
+        self,
+        args,
+        model,
+        optimizer,
+        criterion,
+        device,
     ):
         self.model = model
         self.optimizer = optimizer
         self.criterion = criterion
-        self.train_loader = train_loader
-        self.val_loader = val_loader
-        self.test_loader = test_loader
         self.args = args
         self.device = device
-        self.depth_magnitude_factor = max_depth
 
     def train_step(self, model, batch, criterion, optimizer):
         model.train()
@@ -44,23 +45,17 @@ class Trainer:
         model.eval()
         result = {}
         with torch.no_grad():
-            y = batch["depth"].permute(0, 3, 1, 2).to(self.device)
+            y = batch["depth"].to(self.device)
             pred = self.model_forward(model, batch)
             test_loss = criterion(pred, y)
             result["loss"] = test_loss.item()
             result["pred"] = pred
-            pred, y = postproc_eval_depths(
+            metrics = get_metrics(
                 pred,
-                y,
-                min_depth=self.args.min_depth_eval,
-                max_depth=self.args.max_depth_eval,
-            )
-            eval_mask = compute_eval_mask(
                 y,
                 min_depth=self.args.min_depth_eval,
                 max_depth=self.args.max_depth_eval,
                 crop_type=self.args.crop_type,
                 ds_name=self.args.ds,
             )
-            metrics = calc_metrics(pred, y, mask=eval_mask, depth_magnitude_factor=self.depth_magnitude_factor)
             return {**result, **metrics}
