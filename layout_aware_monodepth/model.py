@@ -227,7 +227,9 @@ class DepthModel(nn.Module):
         else:
             depth = self.depth_head(decoder_output)
 
-        return depth
+        depth_scaled = depth * 80
+
+        return depth_scaled
 
     def create_line_attn_blocks(self, encoder_name):
         line_attn_blocks = []
