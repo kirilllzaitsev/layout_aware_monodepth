@@ -34,8 +34,8 @@ class D_Net(nn.Module):
             params, self.encoder.feat_out_channels, self.encoder.input_shape
         )
 
-    def forward(self, x, line_info=None):
-        focal = torch.tensor(720, device=x.device)
+    def forward(self, x, line_info=None, focal=720):
+        focal = torch.tensor(focal, device=x.device)
         skip_feat = self.encoder(x)
         return self.decoder(skip_feat, focal)
 
