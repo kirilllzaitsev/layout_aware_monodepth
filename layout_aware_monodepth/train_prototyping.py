@@ -347,7 +347,10 @@ def create_dataloaders(args, ds_args):
         if args.do_overfit:
             ds_subset = torch.utils.data.Subset(train_ds, range(0, 480))
         else:
-            ds_subset = torch.utils.data.Subset(train_ds, range(0, 11_000))
+            gen = torch.Generator()
+            random_idxs = torch.randperm(len(train_ds), generator=gen)
+            shuffled_train_ds = torch.utils.data.Subset(train_ds, random_idxs)
+            ds_subset = torch.utils.data.Subset(shuffled_train_ds, range(0, 11_000))
         if args.use_eigen:
             test_subset = ds_cls(
                 ds_args,
