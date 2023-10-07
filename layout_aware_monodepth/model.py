@@ -134,16 +134,43 @@ class DepthModel(nn.Module):
 
         self.use_df_to_postproc_depth = use_df_to_postproc_depth
         if self.use_df_to_postproc_depth:
-            self.postproc_depth_layer = AttentionBasicBlockB(
-                16+1,
-                1,
-                stride=1,
-                heads=12,
-                window_size=8,
-                # window_size=4,
-                norm=nn.LayerNorm,
-                use_pos_emb=True,
+            postproc_depth_hidden_channels = [64]
+            sa_layers = []
+            sa_layers.append(
+                AttentionBasicBlockB(
+                    16 + 1,
+                    postproc_depth_hidden_channels[0],
+                    stride=1,
+                    heads=8,
+                    window_size=8,
+                    norm=nn.LayerNorm,
+                    use_pos_emb=True,
+                )
             )
+            for i in range(1, len(postproc_depth_hidden_channels) - 1):
+                sa_layers.append(
+                    AttentionBasicBlockB(
+                        postproc_depth_hidden_channels[i - 1],
+                        postproc_depth_hidden_channels[i],
+                        stride=1,
+                        heads=8,
+                        window_size=8,
+                        norm=nn.LayerNorm,
+                        use_pos_emb=True,
+                    )
+                )
+            sa_layers.append(
+                AttentionBasicBlockB(
+                    postproc_depth_hidden_channels[-1],
+                    1,
+                    stride=1,
+                    heads=8,
+                    window_size=8,
+                    norm=nn.LayerNorm,
+                    use_pos_emb=True,
+                )
+            )
+            self.postproc_depth_layer = nn.Sequential(*sa_layers)
 
         self.decoder = model.decoder
         self.df_gap = nn.AdaptiveAvgPool2d((8, 8))
