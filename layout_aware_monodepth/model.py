@@ -250,7 +250,14 @@ class DepthModel(nn.Module):
             line_res = self.get_deeplsd_pred(x)
             df_embed = line_res["df_norm"] / 25
             depth = torch.cat([decoder_output, df_embed.unsqueeze(1)], dim=1)
+            init_shape = depth.shape[-2:]
+            depth = fn.resize(
+                depth,
+                [i // 2 for i in init_shape],
+                antialias=True,
+            )
             depth = self.postproc_depth_layer(depth)
+            depth = fn.resize(depth, init_shape, antialias=True)
         else:
             depth = self.depth_head(decoder_output)
 
