@@ -35,6 +35,7 @@ class MonodepthDataset(Dataset):
         split=None,
         transform=None,
         do_augment=False,
+        include_sample_paths=False,
     ):
         self.args = args
 
@@ -46,6 +47,7 @@ class MonodepthDataset(Dataset):
         self.to_tensor = ToTensor
         self.filenames = []
         self.data_dir = self.args.data_path
+        self.include_sample_paths = include_sample_paths
 
         if self.args.line_op is not None and not self.args.do_load_lines:
             from layout_aware_monodepth.data.tmp import load_deeplsd
@@ -68,6 +70,9 @@ class MonodepthDataset(Dataset):
 
         if self.transform:
             sample["image"] = self.transform(sample["image"])
+
+        if self.include_sample_paths:
+            sample["rgb_path"] = self.load_paths(self.filenames[idx])[0]
 
         return sample
 
@@ -303,6 +308,9 @@ class MonodepthDataset(Dataset):
 
     def load_img_and_depth(self, paths_map):
         raise NotImplementedError
+    
+    def load_paths(self, paths_map):
+        raise NotImplementedError
 
     def convert_depth_to_meters(self, depth_gt):
         raise NotImplementedError
@@ -437,9 +445,13 @@ class NYUv2Dataset(MonodepthDataset):
             self.filenames = json_data[self.mode]
 
     def load_img_and_depth(self, paths_map):
-        path_file = os.path.join(self.data_dir, paths_map["filename"])
+        path_file = self.load_paths(paths_map)
 
         return self.load_img_and_depth_from_path(path_file)
+
+    def load_paths(self, paths_map):
+        path_file = os.path.join(self.data_dir, paths_map["filename"])
+        return path_file
 
     def load_img_and_depth_from_path(self, path_file):
         f = h5py.File(path_file, "r")
