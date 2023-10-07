@@ -32,6 +32,207 @@ from layout_aware_monodepth.trainer import Trainer
 from layout_aware_monodepth.vis_utils import plot_samples_and_preds
 
 
+def log_benchmark_batch_res(
+    experiment, train_ds, benchmark_batch, epoch, benchmark_step_res, benchmark_metrics
+):
+    log_metric(experiment, benchmark_metrics, epoch, prefix="epoch")
+    out = benchmark_step_res["pred"].detach().cpu().permute(0, 2, 3, 1)
+
+    name = "preds/depth"
+    for idx in range(len(out)):
+        experiment.log_image(
+            out[idx].numpy(),
+            f"{name}_{idx}",
+            step=epoch,
+        )
+
+    name = "preds/sample"
+    fig = plot_samples_and_preds(
+        benchmark_batch,
+        out,
+        with_depth_diff=True,
+        with_colorbar=True,
+        max_depth=train_ds.max_depth,
+    )
+    experiment.log_figure(
+        name,
+        fig,
+        step=epoch,
+    )
+    plt.close()
+
+
+def prepare_args(args, experiment, exp_dir):
+    train_args_path = f"{exp_dir}/train_args.yaml"
+
+    if args.resume_exp:
+        previos_args = yaml.safe_load(open(train_args_path))
+        if args.load_previos_args:
+            args = argparse.Namespace(
+                **{
+                    **previos_args["args"],
+                    "resume_exp": args.resume_exp,
+                    "exp_name": args.exp_name,
+                    "global_step": args.global_step,
+                    "resume_epoch": args.resume_epoch,
+                }
+            )
+        ds_args = argparse.Namespace(**previos_args["ds_args"])
+    else:
+        ds_args = load_config(args.ds)
+
+    upd_ds_args_with_runtime_args(args, ds_args)
+
+    if not args.resume_exp:
+        with open(train_args_path, "w") as f:
+            yaml.dump(
+                {"args": vars(args), "ds_args": vars(ds_args)},
+                f,
+                default_flow_style=False,
+            )
+    experiment.log_asset(train_args_path)
+    os.remove("./train_args_latest.yaml")
+    os.symlink(
+        train_args_path,
+        "./train_args_latest.yaml",
+    )
+    log_tags(args, experiment, cfg)
+
+    return args, ds_args
+
+
+def upd_ds_args_with_runtime_args(args, ds_args):
+    non_overridden_ds_args = []
+    for k, v in vars(args).items():
+        if hasattr(ds_args, k):
+            if v is None:
+                non_overridden_ds_args.append(k)
+                continue
+            setattr(ds_args, k, v)
+        else:
+            non_overridden_ds_args.append(k)
+    if args.line_embed_channels:
+        ds_args.line_embed_channels = args.line_embed_channels
+    print(f"Non-overridden ds_args: {non_overridden_ds_args}")
+
+
+def create_dataloaders(args, ds_args):
+    if args.ds == "kitti":
+        ds_cls = KITTIDataset
+    else:
+        ds_cls = NYUv2Dataset
+
+    train_ds = ds_cls(
+        ds_args,
+        "train",
+        ds_args.split,
+        transform=train_transform,
+        do_augment=False,
+        include_sample_paths=getattr(args, "include_sample_paths", False),
+    )
+
+    if args.use_single_sample and args.do_overfit:
+        ds_args.batch_size = 1
+        args.num_epochs = 100
+        args.vis_freq_epochs = 10
+        ds_subset = torch.utils.data.Subset(train_ds, range(0, 1))
+        train_subset = val_subset = test_subset = ds_subset
+        num_workers = 0
+    else:
+        if args.do_overfit:
+            ds_subset = torch.utils.data.Subset(train_ds, range(0, 480))
+        else:
+            gen = torch.Generator()
+            random_idxs = torch.randperm(len(train_ds), generator=gen)
+            shuffled_train_ds = torch.utils.data.Subset(train_ds, random_idxs)
+            if args.use_full_ds:
+                ds_subset = shuffled_train_ds
+            else:
+                ds_subset = torch.utils.data.Subset(shuffled_train_ds, range(0, 11_000))
+        if args.use_eigen:
+            test_subset = ds_cls(
+                ds_args,
+                "test",
+                ds_args.split,
+                transform=test_transform,
+                do_augment=False,
+                include_sample_paths=getattr(args, "include_sample_paths", False),
+            )
+            train_ds_share = 0.9
+            val_ds_share = 0.1
+        else:
+            train_ds_share = 0.8
+            val_ds_share = test_ds_share = 0.1
+            test_subset = torch.utils.data.Subset(
+                ds_subset,
+                range(int(len(ds_subset) * (1 - test_ds_share)), len(ds_subset)),
+            )
+            test_subset.dataset.transform = test_transform
+        num_workers = args.num_workers
+
+        train_ds_len = int(len(ds_subset) * train_ds_share)
+        val_ds_len = int(len(ds_subset) * val_ds_share)
+        train_subset = torch.utils.data.Subset(ds_subset, range(0, train_ds_len))
+        val_subset = torch.utils.data.Subset(
+            ds_subset, range(train_ds_len, train_ds_len + val_ds_len)
+        )
+        val_subset.dataset.transform = test_transform
+
+    train_loader = DataLoader(
+        train_subset,
+        batch_size=ds_args.batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+    )
+    val_loader = DataLoader(
+        val_subset, batch_size=ds_args.batch_size, num_workers=num_workers
+    )
+    test_loader = DataLoader(
+        test_subset, batch_size=ds_args.batch_size, num_workers=num_workers
+    )
+
+    return train_ds, train_loader, val_loader, test_loader
+
+
+def init_model(args, device):
+    img_channels = 1 if args.use_grayscale_img else 3
+    model_kwargs = dict(
+        in_channels=img_channels + 1
+        if args.line_op in ["concat", "concat_binary"]
+        else img_channels,
+        use_attn=args.use_attn,
+        use_extra_conv=args.use_extra_conv,
+        encoder_name=args.backbone,
+        do_insert_after=not args.use_attn_before_se,
+        decoder_attention_type=args.decoder_attention_type,
+        window_size=args.window_size,
+        do_attend_line_info=args.do_attend_line_info,
+        line_info_feature_map_kwargs=None
+        if args.line_embed_channels is None
+        else dict(
+            image_size=(256, 768),
+            patch_size=(8, 16),
+            dim=args.line_embed_channels,
+            depth=1,
+            heads=8,
+            channels=args.line_embed_channels,
+            mlp_dim=256,
+            dropout=0.1,
+            emb_dropout=0.1,
+            dim_head=64,
+        ),
+        add_df_to_line_info=args.add_df_to_line_info,
+        add_df_to_line_info_before_encoder=args.add_df_to_line_info_before_encoder,
+        return_deeplsd_embedding=args.return_deeplsd_embedding,
+        use_df_to_postproc_depth=args.use_df_to_postproc_depth,
+    )
+    model = DepthModel(**model_kwargs)
+    model.to(device)
+    if hasattr(model, "dlsd"):
+        model.dlsd.to(device)
+    return model, model_kwargs
+
+
 def run(args):
     setup_env()
 
@@ -158,7 +359,9 @@ def run(args):
             global_step += 1
             log_metric(experiment, train_metrics, global_step, prefix="step")
             train_metrics_avg.update(train_metrics)
-        scheduler.step()
+
+        if not args.do_overfit:
+            scheduler.step()
 
         for val_batch in val_loader:
             val_step_res = trainer.eval_step(model, val_batch, criterion)
@@ -238,200 +441,6 @@ def run(args):
     experiment.end()
 
 
-def log_benchmark_batch_res(
-    experiment, train_ds, benchmark_batch, epoch, benchmark_step_res, benchmark_metrics
-):
-    log_metric(experiment, benchmark_metrics, epoch, prefix="epoch")
-    out = benchmark_step_res["pred"].detach().cpu().permute(0, 2, 3, 1)
-
-    name = "preds/depth"
-    for idx in range(len(out)):
-        experiment.log_image(
-            out[idx].numpy(),
-            f"{name}_{idx}",
-            step=epoch,
-        )
-
-    name = "preds/sample"
-    fig = plot_samples_and_preds(
-        benchmark_batch,
-        out,
-        with_depth_diff=True,
-        with_colorbar=True,
-        max_depth=train_ds.max_depth,
-    )
-    experiment.log_figure(
-        name,
-        fig,
-        step=epoch,
-    )
-    plt.close()
-
-
-def prepare_args(args, experiment, exp_dir):
-    train_args_path = f"{exp_dir}/train_args.yaml"
-
-    if args.resume_exp:
-        previos_args = yaml.safe_load(open(train_args_path))
-        if args.load_previos_args:
-            args = argparse.Namespace(
-                **{
-                    **previos_args["args"],
-                    "resume_exp": args.resume_exp,
-                    "exp_name": args.exp_name,
-                    "global_step": args.global_step,
-                    "resume_epoch": args.resume_epoch,
-                }
-            )
-        ds_args = argparse.Namespace(**previos_args["ds_args"])
-    else:
-        ds_args = load_config(args.ds)
-
-    upd_ds_args_with_runtime_args(args, ds_args)
-
-    if not args.resume_exp:
-        with open(train_args_path, "w") as f:
-            yaml.dump(
-                {"args": vars(args), "ds_args": vars(ds_args)},
-                f,
-                default_flow_style=False,
-            )
-    experiment.log_asset(train_args_path)
-    os.remove("./train_args_latest.yaml")
-    os.symlink(
-        train_args_path,
-        "./train_args_latest.yaml",
-    )
-    log_tags(args, experiment, cfg)
-
-    return args, ds_args
-
-
-def upd_ds_args_with_runtime_args(args, ds_args):
-    non_overridden_ds_args = []
-    for k, v in vars(args).items():
-        if hasattr(ds_args, k):
-            if v is None:
-                non_overridden_ds_args.append(k)
-                continue
-            setattr(ds_args, k, v)
-        else:
-            non_overridden_ds_args.append(k)
-    if args.line_embed_channels:
-        ds_args.line_embed_channels = args.line_embed_channels
-    print(f"Non-overridden ds_args: {non_overridden_ds_args}")
-
-
-def create_dataloaders(args, ds_args):
-    if args.ds == "kitti":
-        ds_cls = KITTIDataset
-    else:
-        ds_cls = NYUv2Dataset
-
-    train_ds = ds_cls(
-        ds_args,
-        "train",
-        ds_args.split,
-        transform=train_transform,
-        do_augment=False,
-    )
-
-    if args.use_single_sample and args.do_overfit:
-        ds_args.batch_size = 1
-        args.num_epochs = 100
-        args.vis_freq_epochs = 10
-        ds_subset = torch.utils.data.Subset(train_ds, range(0, 1))
-        train_subset = val_subset = test_subset = ds_subset
-        num_workers = 0
-    else:
-        if args.do_overfit:
-            ds_subset = torch.utils.data.Subset(train_ds, range(0, 480))
-        else:
-            gen = torch.Generator()
-            random_idxs = torch.randperm(len(train_ds), generator=gen)
-            shuffled_train_ds = torch.utils.data.Subset(train_ds, random_idxs)
-            ds_subset = torch.utils.data.Subset(shuffled_train_ds, range(0, 11_000))
-        if args.use_eigen:
-            test_subset = ds_cls(
-                ds_args,
-                "test",
-                ds_args.split,
-                transform=test_transform,
-                do_augment=False,
-            )
-            train_ds_share = 0.9
-            val_ds_share = 0.1
-        else:
-            train_ds_share = 0.8
-            val_ds_share = test_ds_share = 0.1
-            test_subset = torch.utils.data.Subset(
-                ds_subset,
-                range(int(len(ds_subset) * (1 - test_ds_share)), len(ds_subset)),
-            )
-            test_subset.dataset.transform = test_transform
-        num_workers = args.num_workers
-
-        train_ds_len = int(len(ds_subset) * train_ds_share)
-        val_ds_len = int(len(ds_subset) * val_ds_share)
-        train_subset = torch.utils.data.Subset(ds_subset, range(0, train_ds_len))
-        val_subset = torch.utils.data.Subset(
-            ds_subset, range(train_ds_len, train_ds_len + val_ds_len)
-        )
-
-    train_loader = DataLoader(
-        train_subset,
-        batch_size=ds_args.batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-    )
-    val_loader = DataLoader(
-        val_subset, batch_size=ds_args.batch_size, num_workers=num_workers
-    )
-    test_loader = DataLoader(
-        test_subset, batch_size=ds_args.batch_size, num_workers=num_workers
-    )
-
-    return train_ds, train_loader, val_loader, test_loader
-
-
-def init_model(args, device):
-    img_channels = 1 if args.use_grayscale_img else 3
-    model_kwargs = dict(
-        in_channels=img_channels + 1
-        if args.line_op in ["concat", "concat_binary"]
-        else img_channels,
-        use_attn=args.use_attn,
-        use_extra_conv=args.use_extra_conv,
-        encoder_name=args.backbone,
-        do_insert_after=not args.use_attn_before_se,
-        decoder_attention_type=args.decoder_attention_type,
-        window_size=args.window_size,
-        do_attend_line_info=args.do_attend_line_info,
-        line_info_feature_map_kwargs=None
-        if args.line_embed_channels is None
-        else dict(
-            image_size=(256, 768),
-            patch_size=(8, 16),
-            dim=args.line_embed_channels,
-            depth=1,
-            heads=8,
-            channels=args.line_embed_channels,
-            mlp_dim=256,
-            dropout=0.1,
-            emb_dropout=0.1,
-            dim_head=64,
-        ),
-        add_df_to_line_info=args.add_df_to_line_info,
-        add_df_to_line_info_before_encoder=args.add_df_to_line_info_before_encoder,
-        return_deeplsd_embedding=args.return_deeplsd_embedding,
-    )
-    model = DepthModel(**model_kwargs)
-    model.to(device)
-    if hasattr(model, "dlsd"):
-        model.dlsd.to(device)
-    return model, model_kwargs
-
-
 def main():
     import sys
 
@@ -449,6 +458,7 @@ def main():
     )
     ds_args_group.add_argument("--do_overfit", action="store_true")
     ds_args_group.add_argument("--use_single_sample", action="store_true")
+    ds_args_group.add_argument("--use_full_ds", action="store_true")
     ds_args_group.add_argument(
         "--line_op",
         choices=["overlay", "concat", "concat_binary", "concat_embed"],

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 from deeplsd.models.backbones.vgg_unet import VGGUNet
@@ -63,7 +65,7 @@ def load_custom_deeplsd(detect_lines, return_deeplsd_embedding):
             "grad_nfa": True,
         },
     }
-    ckpt = "../artifacts/deeplsd/deeplsd_md.tar"
+    ckpt = f"{Path(__file__).parent.parent}/artifacts/deeplsd/deeplsd_md.tar"
     dlsd = CustomDeepLSD(deeplsd_conf, return_embedding=return_deeplsd_embedding)
     dlsd.load_state_dict(torch.load(str(ckpt))["model"], strict=False)
     return dlsd

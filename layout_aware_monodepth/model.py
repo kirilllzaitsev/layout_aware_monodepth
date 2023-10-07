@@ -60,7 +60,12 @@ class DepthModel(nn.Module):
         self.encoder = model.encoder
         self.attend_line_info = do_attend_line_info
         self.add_df_to_line_info = add_df_to_line_info
-        if self.attend_line_info or self.add_df_to_line_info:
+        if (
+            do_attend_line_info
+            or add_df_to_line_info
+            or add_df_to_line_info_before_encoder
+            or use_df_to_postproc_depth
+        ):
             self.dlsd = load_custom_deeplsd(
                 not self.add_df_to_line_info, return_deeplsd_embedding
             )

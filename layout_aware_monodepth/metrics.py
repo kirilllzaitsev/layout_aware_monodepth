@@ -62,7 +62,7 @@ class TotalMetric(Metric):
 
 def calc_metrics(gt, pred, mask=None, min_depth=1e-3, depth_magnitude_factor=None):
     """Computes relevant metrics on non-zero pixels on ground truth depth map."""
-    if depth_magnitude_factor is not None:
+    if depth_magnitude_factor is not None and (gt.max() <= 1.0 and pred.max() <= 1.0):
         gt = gt * depth_magnitude_factor
         pred = pred * depth_magnitude_factor
 
@@ -159,7 +159,9 @@ def get_metrics(pred, y, max_depth, min_depth=1e-3, crop_type=None, ds_name=None
         crop_type=crop_type,
         ds_name=ds_name,
     )
-    metrics = calc_metrics(pred, y, mask=eval_mask, depth_magnitude_factor=max_depth)
+    metrics = calc_metrics(
+        pred=pred, gt=y, mask=eval_mask, depth_magnitude_factor=max_depth
+    )
     return metrics
 
 
