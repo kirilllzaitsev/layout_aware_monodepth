@@ -132,10 +132,12 @@ class DepthModel(nn.Module):
             )
 
             self.depth_head = nn.Sequential(
-                block, nn.Conv2d(x_dim, 1, kernel_size=3, padding=1), nn.Sigmoid()
+                block, nn.Conv2d(x_dim, 1, kernel_size=3, padding=1)
             )
         else:
-            self.depth_head = model.segmentation_head
+            self.depth_head = nn.Sequential(
+                nn.Conv2d(decoder_channels[-1], 1, kernel_size=3, padding=1)
+            )
 
         self.use_df_to_postproc_depth = use_df_to_postproc_depth
         if self.use_df_to_postproc_depth:
@@ -181,6 +183,7 @@ class DepthModel(nn.Module):
         self.df_gap = nn.AdaptiveAvgPool2d((8, 8))
         self.use_df_as_self_attn_pos_embed = use_df_as_self_attn_pos_embed
         self.use_df_as_feature_map = use_df_as_feature_map
+        self.final_activation = nn.Sigmoid()
 
     def forward(self, x, line_info=None):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
@@ -267,6 +270,8 @@ class DepthModel(nn.Module):
         else:
             depth = self.depth_head(decoder_output)
 
+        depth = self.final_activation(depth)
+        # return depth
         depth_scaled = depth * 80
 
         return depth_scaled
