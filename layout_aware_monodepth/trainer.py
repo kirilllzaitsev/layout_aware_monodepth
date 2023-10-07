@@ -41,6 +41,7 @@ class Trainer:
             out = model(x)
         return out
 
+    @torch.no_grad()
     def eval_step(self, model, batch, criterion):
         model.eval()
         result = {}

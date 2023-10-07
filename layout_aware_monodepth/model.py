@@ -271,7 +271,7 @@ class DepthModel(nn.Module):
             depth = self.depth_head(decoder_output)
 
         depth = self.final_activation(depth)
-        # return depth
+        
         depth_scaled = depth * 80
 
         return depth_scaled

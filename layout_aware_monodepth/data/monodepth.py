@@ -141,7 +141,7 @@ class MonodepthDataset(Dataset):
 
         depth_gt = self.convert_depth_to_meters(depth_gt)
         depth_gt = np.clip(depth_gt, 1e-3, self.max_depth)
-        # depth_gt /= self.max_depth
+
         depth_gt = depth_gt.transpose(2, 0, 1)
 
         if self.args.use_grayscale_img:

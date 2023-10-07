@@ -39,6 +39,8 @@ def create_tracking_exp(args) -> comet_ml.Experiment:
 
     for code_file in glob.glob("./*.py"):
         experiment.log_code(code_file)
+    experiment.log_code("./data/monodepth.py")
+    experiment.log_code("./data/transforms.py")
 
     return experiment
 
@@ -61,7 +63,7 @@ def log_tags(args, experiment, cfg):
     add_tag(cfg.is_cluster, "cluster")
     add_tag(args.resume_exp, "resumed")
     add_tag(args.use_dnet, "dnet")
-    add_tag('mobilenet' in args.backbone, "mobilenet", "resnet18")
+    add_tag("mobilenet" in args.backbone, "mobilenet", "resnet18")
 
     experiment.add_tags(tags)
 
