@@ -14,6 +14,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 
+from layout_aware_monodepth.line_utils import load_custom_deeplsd
+from layout_aware_monodepth.model import DepthModel
 from layout_aware_monodepth.models.dnet.components import (
     Adjustment_Layer,
     Conv,
@@ -31,7 +33,10 @@ class D_Net(nn.Module):
         super(D_Net, self).__init__()
         self.encoder = Encoder(params)
         self.decoder = Decoder(
-            params, self.encoder.feat_out_channels, self.encoder.input_shape
+            params,
+            self.encoder.feat_out_channels,
+            self.encoder.input_shape,
+            use_deeplsd=True,
         )
 
     def forward(self, x, line_info=None, focal=720):
@@ -44,7 +49,14 @@ class Decoder(nn.Module):
 
     """Implementation of the D-Net decoder."""
 
-    def __init__(self, params, feat_out_channels, input_shape=None, base_channels=512):
+    def __init__(
+        self,
+        params,
+        feat_out_channels,
+        input_shape=None,
+        base_channels=512,
+        use_deeplsd=False,
+    ):
         super(Decoder, self).__init__()
 
         self.params = params
@@ -146,7 +158,20 @@ class Decoder(nn.Module):
 
         # H/2 to H
         self.upconv1 = Upconv(channels[1], channels[0])
-        self.conv1 = Conv(channels[0] * 5, channels[0], apply_bn=False)
+
+        self.use_deeplsd = use_deeplsd
+        if self.use_deeplsd:
+            self.dlsd = load_custom_deeplsd(
+                detect_lines=False, return_deeplsd_embedding=True
+            )
+            self.postproc_depth_layer = DepthModel.get_df_self_attn_module(
+                in_channels=channels[0] * 5 + 64,
+                out_channels=channels[0] * 5 + 64,
+                postproc_depth_hidden_channels=[64],
+            )
+            self.conv1 = Conv(channels[0] * 5 + 64, channels[0], apply_bn=False)
+        else:
+            self.conv1 = Conv(channels[0] * 5, channels[0], apply_bn=False)
 
         # Final depth prediction
         self.predict = nn.Sequential(
@@ -223,6 +248,21 @@ class Decoder(nn.Module):
         upconv1 = self.upconv1(conv2)  # H
         concat1 = torch.cat([upconv1, pyr5_1, pyr4_1, pyr3_1, *pyr2_1], dim=1)
 
+        if self.use_deeplsd:
+            line_res = self.get_deeplsd_pred(features[0])
+            df_embed = line_res["df_norm"]
+            concat1 = torch.cat([concat1, df_embed], dim=1)
+            init_shape = concat1.shape[-2:]
+            import torchvision.transforms.functional as fn
+
+            concat = fn.resize(
+                concat1,
+                [i // 2 for i in init_shape],
+                antialias=True,
+            )
+            concat = self.postproc_depth_layer(concat)
+            concat1 = fn.resize(concat, init_shape, antialias=True)
+
         conv1 = self.conv1(concat1)
 
         depth = self.params.max_depth * self.predict(conv1)  # Final depth prediction
@@ -242,6 +282,11 @@ class Decoder(nn.Module):
             )  # Transformers: (426, 560) for NYU, (352, 1216) for KITTI
             # CNNs: (416, 544) for NYU, (352, 1216) for KITTI
         return depth
+
+    def get_deeplsd_pred(self, x):
+        gray_img = x.mean(dim=1, keepdim=True)
+        line_res = self.dlsd(gray_img)
+        return line_res
 
 
 class Encoder(nn.Module):
