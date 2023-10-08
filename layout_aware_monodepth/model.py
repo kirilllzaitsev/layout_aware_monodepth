@@ -39,6 +39,7 @@ class DepthModel(nn.Module):
         use_df_as_self_attn_pos_embed=False,
         use_df_as_feature_map=False,
         use_df_to_postproc_depth=False,
+        use_deeplsd=False
     ):
         super().__init__()
 
@@ -65,6 +66,7 @@ class DepthModel(nn.Module):
             or add_df_to_line_info
             or add_df_to_line_info_before_encoder
             or use_df_to_postproc_depth
+            or use_deeplsd
         ):
             self.dlsd = load_custom_deeplsd(
                 not self.add_df_to_line_info, return_deeplsd_embedding
@@ -141,49 +143,56 @@ class DepthModel(nn.Module):
 
         self.use_df_to_postproc_depth = use_df_to_postproc_depth
         if self.use_df_to_postproc_depth:
-            postproc_depth_hidden_channels = [64]
-            sa_layers = []
-            sa_layers.append(
-                AttentionBasicBlockB(
-                    16 + 1,
-                    postproc_depth_hidden_channels[0],
-                    stride=1,
-                    heads=8,
-                    window_size=8,
-                    norm=nn.LayerNorm,
-                    use_pos_emb=True,
-                )
-            )
-            for i in range(1, len(postproc_depth_hidden_channels) - 1):
-                sa_layers.append(
-                    AttentionBasicBlockB(
-                        postproc_depth_hidden_channels[i - 1],
-                        postproc_depth_hidden_channels[i],
-                        stride=1,
-                        heads=8,
-                        window_size=8,
-                        norm=nn.LayerNorm,
-                        use_pos_emb=True,
-                    )
-                )
-            sa_layers.append(
-                AttentionBasicBlockB(
-                    postproc_depth_hidden_channels[-1],
-                    1,
-                    stride=1,
-                    heads=8,
-                    window_size=8,
-                    norm=nn.LayerNorm,
-                    use_pos_emb=True,
-                )
-            )
-            self.postproc_depth_layer = nn.Sequential(*sa_layers)
+            self.postproc_depth_layer = self.get_df_self_attn_module()
 
         self.decoder = model.decoder
         self.df_gap = nn.AdaptiveAvgPool2d((8, 8))
         self.use_df_as_self_attn_pos_embed = use_df_as_self_attn_pos_embed
         self.use_df_as_feature_map = use_df_as_feature_map
         self.final_activation = nn.Sigmoid()
+
+    @staticmethod
+    def get_df_self_attn_module(
+        in_channels=16 + 1, out_channels=1, postproc_depth_hidden_channels=[64]
+    ):
+        sa_layers = []
+
+        sa_layers.append(
+            AttentionBasicBlockB(
+                in_channels,
+                postproc_depth_hidden_channels[0],
+                stride=1,
+                heads=8,
+                window_size=8,
+                norm=nn.LayerNorm,
+                use_pos_emb=True,
+            )
+        )
+        for i in range(1, len(postproc_depth_hidden_channels) - 1):
+            sa_layers.append(
+                AttentionBasicBlockB(
+                    postproc_depth_hidden_channels[i - 1],
+                    postproc_depth_hidden_channels[i],
+                    stride=1,
+                    heads=8,
+                    window_size=8,
+                    norm=nn.LayerNorm,
+                    use_pos_emb=True,
+                )
+            )
+        sa_layers.append(
+            AttentionBasicBlockB(
+                postproc_depth_hidden_channels[-1],
+                out_channels,
+                stride=1,
+                heads=8,
+                window_size=8,
+                norm=nn.LayerNorm,
+                use_pos_emb=True,
+            )
+        )
+        postproc_depth_layer = nn.Sequential(*sa_layers)
+        return postproc_depth_layer
 
     def forward(self, x, line_info=None):
         """Sequentially pass `x` trough model`s encoder, decoder and heads"""
@@ -271,7 +280,7 @@ class DepthModel(nn.Module):
             depth = self.depth_head(decoder_output)
 
         depth = self.final_activation(depth)
-        
+
         depth_scaled = depth * 80
 
         return depth_scaled

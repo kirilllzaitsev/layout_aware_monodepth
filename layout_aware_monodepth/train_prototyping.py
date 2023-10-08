@@ -225,6 +225,7 @@ def init_model(args, device):
         add_df_to_line_info_before_encoder=args.add_df_to_line_info_before_encoder,
         return_deeplsd_embedding=args.return_deeplsd_embedding,
         use_df_to_postproc_depth=args.use_df_to_postproc_depth,
+        use_deeplsd=args.use_deeplsd,
     )
     model = DepthModel(**model_kwargs)
     model.to(device)
@@ -510,6 +511,7 @@ def main():
     )
     model_args_group.add_argument("--use_df_as_feature_map", action="store_true")
     model_args_group.add_argument("--use_df_to_postproc_depth", action="store_true")
+    model_args_group.add_argument("--use_deeplsd", action="store_true")
     model_args_group.add_argument("--window_size", type=int, default=4)
     model_args_group.add_argument("--do_attend_line_info", action="store_true")
     model_args_group.add_argument("--line_embed_channels", type=int, default=None)
