@@ -125,13 +125,15 @@ class MonodepthDataset(Dataset):
         elif self.args.line_op in ["concat", "concat_binary"]:
             image = self.concat_lines(image, line_detector_res=line_detector_res)
         elif self.args.line_op in ["concat_embed"]:
-            line_embed = self.get_line_embed(image, line_detector_res)
+            line_info = self.get_line_info(image, line_detector_res)
+            line_embed = line_info["feature_map"]
             if self.args.do_crop:
                 line_embed = kb_crop(line_embed.numpy())
 
         if self.args.do_crop:
             image, depth_gt = self.crop(image, depth_gt)
 
+        orig_shape = image.shape
         image, depth_gt = resize_inputs(image, depth_gt, target_shape=self.target_shape)
 
         depth_gt = np.expand_dims(depth_gt, axis=2)
@@ -163,6 +165,14 @@ class MonodepthDataset(Dataset):
                 .resize_(*image.shape[:2], self.args.line_embed_channels)
                 .permute(2, 0, 1)
             )
+            if getattr(self.args, "include_lines", False):
+                rescaled_lines = line_info["lines"] * np.array(
+                    [
+                        self.target_shape[0] / orig_shape[1],
+                        self.target_shape[1] / orig_shape[0],
+                    ]
+                )
+                sample["lines"] = rescaled_lines
         return sample
 
     def prep_test_sample(self, image):
@@ -204,7 +214,7 @@ class MonodepthDataset(Dataset):
 
         return overlay
 
-    def get_line_embed(self, image, line_detector_res=None):
+    def get_line_info(self, image, line_detector_res=None):
         if line_detector_res is None:
             line_detector_res = self.run_line_detector(image)
 
@@ -225,7 +235,7 @@ class MonodepthDataset(Dataset):
         for i, line in enumerate(lines):
             y, x = skimage.draw.line(*(line.astype("int").flatten()))
             feature_map[x, y] = norm_line_embedding[i]
-        return feature_map
+        return {"feature_map": feature_map, "lines": lines}
 
     def concat_lines(self, image, line_detector_res=None):
         if line_detector_res is None:
@@ -308,7 +318,7 @@ class MonodepthDataset(Dataset):
 
     def load_img_and_depth(self, paths_map):
         raise NotImplementedError
-    
+
     def load_paths(self, paths_map):
         raise NotImplementedError
 
