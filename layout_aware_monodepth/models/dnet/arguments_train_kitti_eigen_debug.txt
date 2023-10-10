@@ -1,0 +1,33 @@
+--mode train
+--encoder efficientnet_b0
+--dataset kitti
+--data_path /mnt/wext/msc_studies/monodepth_project/data/kitti/kitti-depth
+--gt_path /mnt/wext/msc_studies/monodepth_project/data/kitti/kitti-depth
+--filenames_file ./file_lists/eigen_train_files_with_gt.txt
+--valid_data_path /mnt/wext/msc_studies/monodepth_project/data/kitti/kitti-depth
+--valid_gt_path /mnt/wext/msc_studies/monodepth_project/data/kitti/kitti-depth
+--valid_filenames_file ./file_lists/eigen_test_files_with_gt.txt
+--input_height 256
+--input_width 768
+--batch_size 4
+--valid_batch_size 1
+--num_epochs 1
+--max_depth 80
+--min_depth 1e-3
+--do_random_rotate
+--degree 1
+--do_kb_crop
+--encoder_trainable
+--initial_epoch 0
+--save_directory /tmp
+--max_learning_rate 1e-4
+--min_learning_rate 1e-6
+--adam_epsilon 1e-3
+--optimiser adamW
+--regularizer_decay 1e-2
+--lr_divide_factor 25
+--final_lr_divide_factor 100
+--gpu_id -1
+--num_threads 2
+--mask_method garg
+--exp_disabled
