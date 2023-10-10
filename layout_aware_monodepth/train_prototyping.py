@@ -143,12 +143,14 @@ def create_dataloaders(args, ds_args):
             ds_subset = torch.utils.data.Subset(train_ds, range(0, 480))
         else:
             gen = torch.Generator()
+
             random_idxs = torch.randperm(len(train_ds), generator=gen)
             shuffled_train_ds = torch.utils.data.Subset(train_ds, random_idxs)
             if args.use_full_ds:
                 ds_subset = shuffled_train_ds
             else:
-                ds_subset = torch.utils.data.Subset(shuffled_train_ds, range(0, 11_000))
+                ds_subset = torch.utils.data.Subset(shuffled_train_ds, range(0, 12_000))
+
         if args.use_eigen:
             test_subset = ds_cls(
                 ds_args,
@@ -170,13 +172,31 @@ def create_dataloaders(args, ds_args):
             test_subset.dataset.transform = test_transform
         num_workers = args.num_workers
 
-        train_ds_len = int(len(ds_subset) * train_ds_share)
-        val_ds_len = int(len(ds_subset) * val_ds_share)
-        train_subset = torch.utils.data.Subset(ds_subset, range(0, train_ds_len))
-        val_subset = torch.utils.data.Subset(
-            ds_subset, range(train_ds_len, train_ds_len + val_ds_len)
-        )
-        val_subset.dataset.transform = test_transform
+        if args.ds == "kitti":
+            # 85-15 shuffled split partitioned by scenes
+            train_subset = KITTIDataset(
+                ds_args,
+                "train",
+                ds_args.split,
+                transform=train_transform,
+                do_augment=False,
+            )
+            train_subset = torch.utils.data.Subset(train_subset, range(0, 12_000))
+            val_subset = KITTIDataset(
+                ds_args,
+                "val",
+                ds_args.split,
+                transform=test_transform,
+                do_augment=False,
+            )
+        else:
+            train_ds_len = int(len(ds_subset) * train_ds_share)
+            val_ds_len = int(len(ds_subset) * val_ds_share)
+            train_subset = torch.utils.data.Subset(ds_subset, range(0, train_ds_len))
+            val_subset = torch.utils.data.Subset(
+                ds_subset, range(train_ds_len, train_ds_len + val_ds_len)
+            )
+            val_subset.dataset.transform = test_transform
 
     train_loader = DataLoader(
         train_subset,
@@ -191,7 +211,7 @@ def create_dataloaders(args, ds_args):
         test_subset, batch_size=ds_args.batch_size, num_workers=num_workers
     )
 
-    return train_ds, train_loader, val_loader, test_loader
+    return train_subset.dataset, train_loader, val_loader, test_loader
 
 
 def init_model(args, device):
@@ -455,7 +475,7 @@ def main():
     ds_args_group.add_argument("--min_length", type=int, default=None)
     ds_args_group.add_argument("--use_min_length", action="store_true")
     ds_args_group.add_argument(
-        "--ds", type=str, default="nyu", choices=["kitti", "nyu"]
+        "--ds", type=str, required=True, choices=["kitti", "nyu"]
     )
     ds_args_group.add_argument("--do_overfit", action="store_true")
     ds_args_group.add_argument("--use_single_sample", action="store_true")
