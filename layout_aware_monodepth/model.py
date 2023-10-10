@@ -232,9 +232,9 @@ class DepthModel(nn.Module):
             self.use_line_info_as_feature_map
             and not self.add_df_to_line_info_before_encoder
         ):
-            assert line_info is not None
-            line_info_embed = self.line_info_extractor(line_info)
             if not self.add_df_to_line_info:
+                assert line_info is not None
+                line_info_embed = self.line_info_extractor(line_info)
                 features[-1] = self.bottleneck_proj(features[-1])
                 features[-1] = torch.cat(
                     [
