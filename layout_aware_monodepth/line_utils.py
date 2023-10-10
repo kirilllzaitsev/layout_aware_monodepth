@@ -55,17 +55,40 @@ class CustomDeepLSD(DeepLSD):
         return outputs
 
 
+deeplsd_conf = {
+    "detect_lines": True,
+    "line_detection_params": {
+        "merge": False,
+        "filtering": True,
+        "grad_thresh": 4,
+        "grad_nfa": True,
+    },
+}
+
+
 def load_custom_deeplsd(detect_lines, return_deeplsd_embedding):
-    deeplsd_conf = {
-        "detect_lines": detect_lines,
-        "line_detection_params": {
-            "merge": False,
-            "filtering": True,
-            "grad_thresh": 4,
-            "grad_nfa": True,
-        },
-    }
+    conf = deeplsd_conf.copy()
+    conf["detect_lines"] = detect_lines
     ckpt = f"{Path(__file__).parent.parent}/artifacts/deeplsd/deeplsd_md.tar"
     dlsd = CustomDeepLSD(deeplsd_conf, return_embedding=return_deeplsd_embedding)
     dlsd.load_state_dict(torch.load(str(ckpt))["model"], strict=False)
     return dlsd
+
+
+def load_deeplsd(device, conf=deeplsd_conf):
+    from deeplsd.geometry.viz_2d import plot_images, plot_lines
+    from deeplsd.models.deeplsd_inference import DeepLSD
+    from deeplsd.utils.tensor import batch_to_device
+
+    from layout_aware_monodepth.cfg import cfg
+
+    # Load the model
+    if cfg.is_cluster:
+        ckpt = "/cluster/work/rsl/kzaitsev/depth_estimation/third_party/DeepLSD/weights/deeplsd_md.tar"
+    else:
+        ckpt = f"{Path(__file__).parent.parent}/artifacts/deeplsd/deeplsd_md.tar"
+    ckpt = torch.load(str(ckpt), map_location="cpu")
+    net = DeepLSD(conf)
+    net.load_state_dict(ckpt["model"])
+    net = net.to(device).eval()
+    return net
