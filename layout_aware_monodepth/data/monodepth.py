@@ -49,7 +49,7 @@ class MonodepthDataset(Dataset):
         self.data_dir = self.args.data_path
         self.include_sample_paths = include_sample_paths
 
-        if self.args.line_op is not None and not self.args.do_load_lines:
+        if self.args.line_op is not None:
             from layout_aware_monodepth.data.tmp import load_deeplsd
 
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
