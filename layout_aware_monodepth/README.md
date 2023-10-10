@@ -8,10 +8,18 @@
 
 ### Setup
 
+Python:
+
 ```bash
 pip install git+https://github.com/kirilllzaitsev/how-do-vits-work.git@transformer
 pip install git+https://github.com/kujason/ip_basic.git@master
 pip install -r requirements.txt
+```
+
+Artifacts:
+
+```bash
+git lfs pull
 ```
 
 ## Datasets
