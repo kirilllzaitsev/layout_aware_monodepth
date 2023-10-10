@@ -5,7 +5,8 @@ split: eigen
 # split: null
 
 data_path: /mnt/wext/msc_studies/monodepth_project/data/kitti/kitti-depth
-filenames_file: ../data/data_splits/kitti_dc.json
+filenames_file: ../data/data_splits/kitti_dc_partitioned.json
+# filenames_file: ../data/data_splits/kitti_dc.json
 
 input_height: 352
 input_width: 1216
