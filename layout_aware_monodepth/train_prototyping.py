@@ -531,6 +531,7 @@ def main():
     )
     model_args_group.add_argument("--use_df_as_feature_map", action="store_true")
     model_args_group.add_argument("--use_df_to_postproc_depth", action="store_true")
+    model_args_group.add_argument("--use_line_info_as_feature_map", action="store_true")
     model_args_group.add_argument("--use_deeplsd", action="store_true")
     model_args_group.add_argument("--window_size", type=int, default=4)
     model_args_group.add_argument("--do_attend_line_info", action="store_true")

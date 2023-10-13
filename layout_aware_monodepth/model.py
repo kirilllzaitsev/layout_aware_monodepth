@@ -39,6 +39,7 @@ class DepthModel(nn.Module):
         use_df_as_self_attn_pos_embed=False,
         use_df_as_feature_map=False,
         use_df_to_postproc_depth=False,
+        use_line_info_as_feature_map=False,
         use_deeplsd=False
     ):
         super().__init__()
@@ -95,7 +96,6 @@ class DepthModel(nn.Module):
                 padding=0,
             )
 
-        use_line_info_as_feature_map = line_info_feature_map_kwargs is not None
         self.use_line_info_as_feature_map = use_line_info_as_feature_map
         if self.use_line_info_as_feature_map:
             self.line_info_extractor = ViT(**line_info_feature_map_kwargs)
