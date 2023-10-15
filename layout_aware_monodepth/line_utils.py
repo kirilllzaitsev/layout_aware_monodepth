@@ -162,3 +162,12 @@ def proj_vps_to_img(line_res):
         np.array([vp[0] / vp[2], vp[1] / vp[2]]).astype(np.int32) for vp in vps
     ]
     return vps_mapped
+
+
+def rescale_lines(lines, orig_shape, target_shape):
+    return lines * np.array(
+        [
+            target_shape[0] / orig_shape[1],
+            target_shape[1] / orig_shape[0],
+        ]
+    )

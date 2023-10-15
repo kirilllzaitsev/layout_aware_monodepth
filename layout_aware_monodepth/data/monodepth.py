@@ -23,6 +23,7 @@ from layout_aware_monodepth.data.transforms import (
     test_transform,
     train_preprocess,
 )
+from layout_aware_monodepth.line_utils import rescale_lines
 
 
 class MonodepthDataset(Dataset):
@@ -49,12 +50,11 @@ class MonodepthDataset(Dataset):
         self.data_dir = self.args.data_path
         self.include_sample_paths = include_sample_paths
 
-        if self.args.line_op is not None:
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if self.args.line_op is not None or self.args.include_lines:
             from layout_aware_monodepth.line_utils import load_deeplsd
 
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-            self.deeplsd = load_deeplsd(self.device)
+            self.deeplsd = load_deeplsd().to(self.device)
 
     def __getitem__(self, idx):
         image, depth_gt = self.load_img_and_depth(self.filenames[idx])
@@ -120,6 +120,13 @@ class MonodepthDataset(Dataset):
         image = np.asarray(image, dtype=np.float32) / 255.0
         depth_gt = np.asarray(depth_gt, dtype=np.float32)
 
+        include_lines = getattr(self.args, "include_lines", False)
+        if include_lines:
+            if line_detector_res is None:
+                line_detector_res = self.run_line_detector(image)
+            lines = line_detector_res["lines"][0].astype(np.int32)
+            if self.args.line_filter is not None:
+                lines = self.filter_lines(line_detector_res, lines)
         if self.args.line_op == "overlay":
             image = self.overlay_lines(image)
         elif self.args.line_op in ["concat", "concat_binary"]:
@@ -165,14 +172,9 @@ class MonodepthDataset(Dataset):
                 .resize_(*image.shape[:2], self.args.line_embed_channels)
                 .permute(2, 0, 1)
             )
-            if getattr(self.args, "include_lines", False):
-                rescaled_lines = line_info["lines"] * np.array(
-                    [
-                        self.target_shape[0] / orig_shape[1],
-                        self.target_shape[1] / orig_shape[0],
-                    ]
-                )
-                sample["lines"] = rescaled_lines
+        if include_lines:
+            rescaled_lines = rescale_lines(lines, orig_shape)
+            sample["lines"] = rescaled_lines
         return sample
 
     def prep_test_sample(self, image):
