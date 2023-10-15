@@ -40,7 +40,7 @@ class DepthModel(nn.Module):
         use_df_as_feature_map=False,
         use_df_to_postproc_depth=False,
         use_line_info_as_feature_map=False,
-        use_deeplsd=False
+        use_deeplsd=False,
     ):
         super().__init__()
 
@@ -164,11 +164,11 @@ class DepthModel(nn.Module):
                 stride=1,
                 heads=8,
                 window_size=8,
-                norm=nn.LayerNorm,
+                # norm=nn.LayerNorm,
                 use_pos_emb=True,
             )
         )
-        for i in range(1, len(postproc_depth_hidden_channels) - 1):
+        for i in range(1, len(postproc_depth_hidden_channels)):
             sa_layers.append(
                 AttentionBasicBlockB(
                     postproc_depth_hidden_channels[i - 1],
@@ -176,7 +176,7 @@ class DepthModel(nn.Module):
                     stride=1,
                     heads=8,
                     window_size=8,
-                    norm=nn.LayerNorm,
+                    # norm=nn.LayerNorm,
                     use_pos_emb=True,
                 )
             )
@@ -187,7 +187,7 @@ class DepthModel(nn.Module):
                 stride=1,
                 heads=8,
                 window_size=8,
-                norm=nn.LayerNorm,
+                # norm=nn.LayerNorm,
                 use_pos_emb=True,
             )
         )
