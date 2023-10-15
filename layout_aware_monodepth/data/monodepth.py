@@ -316,6 +316,25 @@ class MonodepthDataset(Dataset):
                 new_lines.append(line)
         return np.array(new_lines)
 
+    def filter_lines_by_dist(self, lines):
+        # not useful. object contours are naturally close to each other. but! need to look for geometrically identical lines (eg, parallel)
+        distances = []
+        dist_lines = lines.astype("float32")
+        for i in range(len(lines)):
+            for j in range(i + 1, len(lines)):
+                line1 = dist_lines[i]
+                line2 = dist_lines[j]
+                distance = cv2.pointPolygonTest(line1, (line2[0][0], line2[0][1]), True)
+                distances.append((distance, i, j))
+        lines_to_rm = []
+        dist_thresh = 10
+        for distance, i, j in distances:
+            if distance < dist_thresh and i not in lines_to_rm:
+                lines_to_rm.append(i)
+                continue
+        lines_filtered = np.delete(lines, lines_to_rm, axis=0)
+        return lines_filtered
+
     def load_img_and_depth(self, paths_map):
         raise NotImplementedError
 
