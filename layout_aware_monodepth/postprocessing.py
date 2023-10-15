@@ -11,7 +11,7 @@ def postproc_eval_depths(pred, target, min_depth=1e-3, max_depth=10):
 
     pred = pred.detach().squeeze().cpu().numpy()
     pred[pred < min_depth] = min_depth
-    pred[pred > max_depth] = max_depth
+    # pred[pred > max_depth] = max_depth
     pred[np.isinf(pred)] = max_depth
     pred[np.isnan(pred)] = min_depth
 
