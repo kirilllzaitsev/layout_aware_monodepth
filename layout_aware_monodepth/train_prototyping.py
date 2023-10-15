@@ -18,7 +18,7 @@ from layout_aware_monodepth.extras import EarlyStopper
 from layout_aware_monodepth.logging_utils import log_metric, log_params_to_exp
 from layout_aware_monodepth.losses import SILogLoss
 from layout_aware_monodepth.metrics import RunningAverageDict
-from layout_aware_monodepth.model import DepthModel
+from layout_aware_monodepth.model import DepthModel, DepthProbClfBlock
 from layout_aware_monodepth.models.dnet.dnet import init_dnet
 from layout_aware_monodepth.pipeline_utils import (
     create_tracking_exp,
@@ -351,6 +351,35 @@ def run(args):
         criterion,
         device,
     )
+    if args.use_unet_clf:
+        import torch.nn as nn
+
+        trainer.clf_model = DepthProbClfBlock().to(device)
+        trainer.postproc_block = nn.Sequential(
+            DepthModel.get_df_self_attn_module(
+                in_channels=1 + 64,
+                out_channels=1,
+                postproc_depth_hidden_channels=[128, 128],
+            ),
+            nn.Sigmoid(),
+        ).to(device)
+        trainer.model.load_state_dict(
+            {
+                k.replace("module.", ""): v
+                for k, v in torch.load("../artifacts/dnet/model_19.pth")[
+                    "model_state_dict"
+                ].items()
+            },
+            strict=False,
+        )
+        trainer.model.eval()
+        for p in trainer.model.parameters():
+            p.requires_grad = False
+        trainer.optimizer = torch.optim.Adam(
+            list(trainer.clf_model.parameters())
+            + list(trainer.postproc_block.parameters()),
+            lr=lr,
+        )
 
     for epoch in range(start_epoch, args.num_epochs):
         train_batch_bar = tqdm(total=len(train_loader), leave=True)
@@ -532,6 +561,7 @@ def main():
     model_args_group.add_argument("--use_df_as_feature_map", action="store_true")
     model_args_group.add_argument("--use_df_to_postproc_depth", action="store_true")
     model_args_group.add_argument("--use_line_info_as_feature_map", action="store_true")
+    model_args_group.add_argument("--use_unet_clf", action="store_true")
     model_args_group.add_argument("--use_deeplsd", action="store_true")
     model_args_group.add_argument("--window_size", type=int, default=4)
     model_args_group.add_argument("--do_attend_line_info", action="store_true")
@@ -555,6 +585,8 @@ def main():
         assert (
             args.backbone == "timm-mobilenetv3_large_100"
         ), "No SE blocks in resnet backbone"
+    if args.use_unet_clf:
+        assert args.use_dnet, "use_unet_clf only for dnet"
     run(args)
 
 
