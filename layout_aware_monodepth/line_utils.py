@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import torch
 import torch.nn as nn
 from deeplsd.models.backbones.vgg_unet import VGGUNet
@@ -59,6 +60,8 @@ class CustomDeepLSD(DeepLSD):
         )
 
     def forward(self, x):
+        # x must be dict containing an 'image' key with a normalized image
+        x = x["image"]
         self.interim_feature_maps = []
         base = self.backbone(x)
         outputs = {}
@@ -68,6 +71,29 @@ class CustomDeepLSD(DeepLSD):
         outputs["line_level"] = self.angle_head(base).squeeze(1)
         if self.return_both:
             outputs["df_embed"] = self.interim_feature_maps[0]
+
+        # # Detect line segments
+        # if self.conf.detect_lines:
+        #     lines = []
+        #     np_img = (x.cpu().numpy()[:, 0] * 255).astype(np.uint8)
+        #     outputs["df"] = self.denormalize_df(outputs["df_norm"])
+        #     np_df = outputs["df"].cpu().numpy()
+        #     np_ll = outputs["line_level"].cpu().numpy() * np.pi
+        #     if len(np_df.shape) == 4:
+        #         np_df = np_df.squeeze(1)
+        #         np_ll = np_ll.squeeze(1)
+        #     vps, vp_labels = [], []
+        #     for img, df, ll in zip(np_img, np_df, np_ll):
+        #         line, label, vp = self.detect_afm_lines(
+        #             img, df, ll, **self.conf.line_detection_params
+        #         )
+        #         lines.append(line)
+        #         vp_labels.append(label)
+        #         vps.append(vp)
+        #     outputs["vp_labels"] = vp_labels
+        #     outputs["vps"] = vps
+        #     outputs["lines"] = lines
+
         return outputs
 
 
@@ -90,24 +116,49 @@ def load_custom_deeplsd(detect_lines, return_deeplsd_embedding, return_both=Fals
         deeplsd_conf, return_embedding=return_deeplsd_embedding, return_both=return_both
     )
     dlsd.load_state_dict(torch.load(str(ckpt))["model"], strict=False)
+    for p in dlsd.parameters():
+        p.requires_grad = False
     dlsd = dlsd.eval()
     return dlsd
 
 
-def load_deeplsd(device, conf=deeplsd_conf):
-    from deeplsd.geometry.viz_2d import plot_images, plot_lines
+def load_deeplsd(conf=deeplsd_conf):
     from deeplsd.models.deeplsd_inference import DeepLSD
-    from deeplsd.utils.tensor import batch_to_device
-
-    from layout_aware_monodepth.cfg import cfg
 
     # Load the model
-    if cfg.is_cluster:
-        ckpt = "/cluster/work/rsl/kzaitsev/depth_estimation/third_party/DeepLSD/weights/deeplsd_md.tar"
-    else:
-        ckpt = f"{Path(__file__).parent.parent}/artifacts/deeplsd/deeplsd_md.tar"
+    ckpt = f"{Path(__file__).parent.parent}/artifacts/deeplsd/deeplsd_md.tar"
     ckpt = torch.load(str(ckpt), map_location="cpu")
     net = DeepLSD(conf)
     net.load_state_dict(ckpt["model"])
-    net = net.to(device).eval()
+    for p in net.parameters():
+        p.requires_grad = False
+    net = net.eval()
     return net
+
+
+def get_deeplsd_pred(deeplsd, x):
+    gray_img = x.mean(dim=1, keepdim=True)
+    line_res = deeplsd({"image": gray_img})
+    return line_res
+
+
+def filter_nearby_vps(vps_mapped):
+    vps_to_plot = []
+    vps_to_rm = []
+    for i in range(len(vps_mapped)):
+        for j in range(i + 1, len(vps_mapped)):
+            dist = np.linalg.norm(vps_mapped[i] - vps_mapped[j])
+            if dist < 50:
+                vps_to_plot.append(vps_mapped[i])
+                vps_to_plot.append(vps_mapped[j])
+                vps_to_rm.append(j)
+    vps_mapped = [vp for i, vp in enumerate(vps_mapped) if i not in vps_to_rm]
+    return vps_mapped
+
+
+def proj_vps_to_img(line_res):
+    vps = line_res["vps"][0]
+    vps_mapped = [
+        np.array([vp[0] / vp[2], vp[1] / vp[2]]).astype(np.int32) for vp in vps
+    ]
+    return vps_mapped
