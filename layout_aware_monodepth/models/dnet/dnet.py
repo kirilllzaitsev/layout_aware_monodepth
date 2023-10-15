@@ -14,7 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 
-from layout_aware_monodepth.line_utils import load_custom_deeplsd
+from layout_aware_monodepth.line_utils import get_deeplsd_pred, load_custom_deeplsd
 from layout_aware_monodepth.model import DepthModel
 from layout_aware_monodepth.models.dnet.components import (
     Adjustment_Layer,
@@ -253,7 +253,7 @@ class Decoder(nn.Module):
         concat1 = torch.cat([upconv1, pyr5_1, pyr4_1, pyr3_1, *pyr2_1], dim=1)
 
         if self.do_concat_df:
-            line_res = self.get_deeplsd_pred(features[0])
+            line_res = get_deeplsd_pred(self.dlsd, features[0])
             df_embed = line_res["df_norm"]
             concat1 = torch.cat([concat1, df_embed], dim=1)
             init_shape = concat1.shape[-2:]
@@ -287,10 +287,6 @@ class Decoder(nn.Module):
             # CNNs: (416, 544) for NYU, (352, 1216) for KITTI
         return depth
 
-    def get_deeplsd_pred(self, x):
-        gray_img = x.mean(dim=1, keepdim=True)
-        line_res = self.dlsd(gray_img)
-        return line_res
 
 
 class Encoder(nn.Module):

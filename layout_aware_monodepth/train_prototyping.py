@@ -245,7 +245,7 @@ def init_model(args, device):
         add_df_to_line_info_before_encoder=args.add_df_to_line_info_before_encoder,
         return_deeplsd_embedding=args.return_deeplsd_embedding,
         use_df_to_postproc_depth=args.use_df_to_postproc_depth,
-        use_deeplsd=args.use_deeplsd,
+        use_deeplsd=args.use_deeplsd_in_model,
     )
     model = DepthModel(**model_kwargs)
     model.to(device)
@@ -350,6 +350,8 @@ def run(args):
         optimizer,
         criterion,
         device,
+        use_vp_loss=args.use_vp_loss,
+        use_deeplsd=args.use_unet_clf or args.use_vp_loss,
     )
     if args.use_unet_clf:
         import torch.nn as nn
@@ -396,7 +398,7 @@ def run(args):
 
         for train_batch in train_loader:
             train_step_res = trainer.train_step(
-                model, train_batch, criterion, optimizer
+                model, train_batch, criterion, optimizer, epoch=epoch
             )
             loss = train_step_res["loss"]
             train_running_losses.append(loss)
@@ -562,7 +564,8 @@ def main():
     model_args_group.add_argument("--use_df_to_postproc_depth", action="store_true")
     model_args_group.add_argument("--use_line_info_as_feature_map", action="store_true")
     model_args_group.add_argument("--use_unet_clf", action="store_true")
-    model_args_group.add_argument("--use_deeplsd", action="store_true")
+    model_args_group.add_argument("--use_deeplsd_in_model", action="store_true")
+    model_args_group.add_argument("--use_vp_loss", action="store_true")
     model_args_group.add_argument("--window_size", type=int, default=4)
     model_args_group.add_argument("--do_attend_line_info", action="store_true")
     model_args_group.add_argument("--line_embed_channels", type=int, default=None)
