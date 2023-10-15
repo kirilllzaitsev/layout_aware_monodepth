@@ -386,6 +386,34 @@ class DepthModel(nn.Module):
         return new_embeds
 
 
+class DepthProbClfBlock(nn.Module):
+    def __init__(
+        self, in_channels=3 + 1 + 1 + 1, out_channels=2
+    ):  # distance field + dnet pred + postprocess pred + image
+        super().__init__()
+        encoder_name = "timm-mobilenetv3_large_100"
+        encoder_weights = None
+        decoder_activation = "sigmoid"
+        decoder_attention_type = "scse"
+        decoder_first_channel = 256 * 1
+        decoder_channels = [decoder_first_channel]
+        for i in range(1, 5):
+            decoder_channels.append(decoder_first_channel // (2**i))
+        self.model = smp.Unet(
+            encoder_name=encoder_name,
+            encoder_weights=encoder_weights,
+            in_channels=in_channels,
+            classes=out_channels,
+            activation=decoder_activation,
+            encoder_depth=len(decoder_channels),
+            decoder_channels=decoder_channels,
+            decoder_attention_type=decoder_attention_type,
+        )
+
+    def forward(self, x):
+        return self.model(x)
+
+
 if __name__ == "__main__":
     model = DepthModel()
     x = torch.randn(1, 3, 256, 256)
