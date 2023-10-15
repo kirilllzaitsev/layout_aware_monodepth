@@ -1,3 +1,4 @@
+import skimage
 import torch
 import torch.nn as nn
 
@@ -104,9 +105,7 @@ class VPLoss(nn.Module):
                 # idx_dist_matrix_within_window_from_its_center[i, j] = torch.power(
                 #     torch.e, -idx_dist
                 # )
-                idx_dist_matrix_within_window_from_its_center[i, j] = (
-                    1 / (2 + idx_dist)
-                )
+                idx_dist_matrix_within_window_from_its_center[i, j] = 1 / (2 + idx_dist)
                 # idx_dist_matrix_within_window_from_its_center[i, j] = torch.exp(window_center_coord - torch.array([i, j]))
         return idx_dist_matrix_within_window_from_its_center
 
@@ -149,3 +148,59 @@ class VPLoss(nn.Module):
                 left_x:right_x,
             ]
         return window
+
+
+class LineLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.name = "Line"
+
+    def forward(self, pred, lines):
+        diff_sums_along_lines = []
+        random_line_idx = 150
+        for i, line in enumerate(lines):
+            # for i, line in ([[random_line_idx, lines[random_line_idx]]]):
+            # sorted in desscending order
+            ys, xs = skimage.draw.line(*(line.astype("int").flatten()))
+            diff_sums_along_lines.append(torch.sum(torch.diff(pred[xs, ys])))
+            # overlay = cv2.line(overlay, tuple(line[0]), tuple(line[1]), (255, 255, 255), 2)
+            # break
+        diff_sums_along_lines = torch.tensor(diff_sums_along_lines)
+        # line_angles = compute_line_angles(lines)
+        # line_angles = torch.ones_like(diff_sums_along_lines) * torch.pi
+        line_angles = torch.ones_like(diff_sums_along_lines) * torch.pi / 2
+        weights = degrees_to_weights(radians_to_degrees(line_angles))
+        loss = torch.sum(weights * diff_sums_along_lines)
+        return loss
+
+
+def degrees_to_weights(degrees):
+    # Generate an array of degrees from 0 to 90
+    degrees = degrees % 90
+    # Calculate the height of the triangle for each degree
+    # We're assuming a triangle with a base of 90 and the top at 45 degrees
+    skew_factor = 1.5  # this value can be adjusted to increase or decrease the skew
+    skewed_degrees = degrees**skew_factor / (max(degrees) + 1) ** (skew_factor - 1)
+
+    sharpness_factor = 2.5
+    # skewed_degrees = degrees**sharpness_factor / 90**(sharpness_factor-1)
+    heights = 90 - (torch.abs(skewed_degrees - 45) ** sharpness_factor) ** (
+        1 / sharpness_factor
+    )
+
+    # Create the plot
+    heights /= 300
+    heights = heights**4
+    return heights
+
+
+def radians_to_degrees(radians):
+    return radians * 180 / torch.pi
+
+
+def compute_line_angles(lines):
+    line_slopes = torch.abs(
+        (lines[:, 1, 1] - lines[:, 0, 1]) / (lines[:, 1, 0] - lines[:, 0, 0] + 1e-6)
+    )
+    line_angles = torch.arctan(line_slopes)
+    return line_angles
