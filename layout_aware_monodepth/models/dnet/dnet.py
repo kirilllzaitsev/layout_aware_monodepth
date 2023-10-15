@@ -37,6 +37,7 @@ class D_Net(nn.Module):
             self.encoder.feat_out_channels,
             self.encoder.input_shape,
             use_deeplsd=True,
+            do_concat_df=False,
         )
 
     def forward(self, x, line_info=None, focal=720):
@@ -56,6 +57,7 @@ class Decoder(nn.Module):
         input_shape=None,
         base_channels=512,
         use_deeplsd=False,
+        do_concat_df=False,
     ):
         super(Decoder, self).__init__()
 
@@ -162,8 +164,10 @@ class Decoder(nn.Module):
         self.use_deeplsd = use_deeplsd
         if self.use_deeplsd:
             self.dlsd = load_custom_deeplsd(
-                detect_lines=False, return_deeplsd_embedding=True
+                detect_lines=False, return_deeplsd_embedding=True, return_both=True
             )
+        self.do_concat_df = do_concat_df
+        if self.do_concat_df:
             self.postproc_depth_layer = DepthModel.get_df_self_attn_module(
                 in_channels=channels[0] * 5 + 64,
                 out_channels=channels[0] * 5 + 64,
@@ -248,7 +252,7 @@ class Decoder(nn.Module):
         upconv1 = self.upconv1(conv2)  # H
         concat1 = torch.cat([upconv1, pyr5_1, pyr4_1, pyr3_1, *pyr2_1], dim=1)
 
-        if self.use_deeplsd:
+        if self.do_concat_df:
             line_res = self.get_deeplsd_pred(features[0])
             df_embed = line_res["df_norm"]
             concat1 = torch.cat([concat1, df_embed], dim=1)
