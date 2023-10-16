@@ -35,6 +35,13 @@ class Trainer:
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
         optimizer.step()
+    def compute_line_loss(self, batch, out):
+        x = batch["image"].to(self.device)
+        line_res = get_deeplsd_pred(self.dlsd, x)
+        lines = line_res["lines"]
+        loss_line = self.line_loss(out, lines)
+        return loss_line
+
     def compute_vp_loss(self, batch, pred, use_depth_as_vp_filter=False):
         x = batch["image"].to(self.device)
         line_res = get_deeplsd_pred(self.dlsd, x)
