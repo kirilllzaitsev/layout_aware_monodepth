@@ -35,7 +35,45 @@ class Trainer:
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
         optimizer.step()
-        return {"loss": loss.item(), "pred": out}
+    def compute_vp_loss(self, batch, pred, use_depth_as_vp_filter=False):
+        x = batch["image"].to(self.device)
+        line_res = get_deeplsd_pred(self.dlsd, x)
+        vp_loss = torch.tensor(0.0).to(self.device)
+        min_vps_in_batch = 100000
+        max_vps_in_batch = 0
+        for idx in range(len(line_res["vps"])):
+            vps = [
+                torch.tensor([vp[0] / vp[2], vp[1] / vp[2]]).float()
+                for vp in line_res["vps"][idx]
+            ]
+            h, w = pred.shape[-2:]
+            vps = [
+                vp
+                for vp in vps
+                if vp[0] >= 0 and vp[0] < w and vp[1] >= 0 and vp[1] < h
+            ]
+            if use_depth_as_vp_filter:
+                # VPs can be no closer than 15 meters to the camera, computed as a mean depth of a 2x2 window around a VP
+                def is_depth_large_enough_for_vp(vp):
+                    vp = vp.long()
+                    vp_depth_thresh = 15
+                    return (
+                        torch.mean(
+                            pred[idx, :, vp[1] - 2 : vp[1] + 2, vp[0] - 2 : vp[0] + 2]
+                        )
+                        > vp_depth_thresh
+                    )
+
+                vps = [vp for vp in vps if is_depth_large_enough_for_vp(vp)]
+            min_vps_in_batch = min(min_vps_in_batch, len(vps))
+            max_vps_in_batch = max(max_vps_in_batch, len(vps))
+            for vp in vps:
+                vp_loss += self.vp_loss(pred[idx], vp)
+        return {
+            "vp_loss": vp_loss,
+            "min_vps_in_batch": min_vps_in_batch,
+            "max_vps_in_batch": max_vps_in_batch,
+        }
 
     def model_forward(self, model, batch):
         x = batch["image"].to(self.device)
