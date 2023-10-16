@@ -39,6 +39,7 @@ class Trainer:
         self.use_line_loss = use_line_loss
         if use_vp_loss:
             self.vp_loss = VPLoss()
+            self.vp_loss_window_size = 20
         if use_line_loss:
             self.line_loss = LineLoss()
 
@@ -122,7 +123,7 @@ class Trainer:
             min_vps_in_batch = min(min_vps_in_batch, len(vps))
             max_vps_in_batch = max(max_vps_in_batch, len(vps))
             for vp in vps:
-                vp_loss += self.vp_loss(pred[idx], vp)
+                vp_loss += self.vp_loss(pred[idx], vp, window_size=self.vp_loss_window_size)
         return {
             "vp_loss": vp_loss,
             "min_vps_in_batch": min_vps_in_batch,
