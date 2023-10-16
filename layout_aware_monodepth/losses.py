@@ -1,6 +1,7 @@
 import skimage
 import torch
 import torch.nn as nn
+import numpy as np
 
 
 class MaskerMixin:
@@ -156,21 +157,24 @@ class LineLoss(nn.Module):
         self.name = "Line"
 
     def forward(self, pred, lines):
-        diff_sums_along_lines = []
         random_line_idx = 150
-        for i, line in enumerate(lines):
-            # for i, line in ([[random_line_idx, lines[random_line_idx]]]):
-            # sorted in desscending order
-            ys, xs = skimage.draw.line(*(line.astype("int").flatten()))
-            diff_sums_along_lines.append(torch.sum(torch.diff(pred[xs, ys])))
-            # overlay = cv2.line(overlay, tuple(line[0]), tuple(line[1]), (255, 255, 255), 2)
-            # break
-        diff_sums_along_lines = torch.tensor(diff_sums_along_lines)
-        # line_angles = compute_line_angles(lines)
-        # line_angles = torch.ones_like(diff_sums_along_lines) * torch.pi
-        line_angles = torch.ones_like(diff_sums_along_lines) * torch.pi / 2
-        weights = degrees_to_weights(radians_to_degrees(line_angles))
-        loss = torch.sum(weights * diff_sums_along_lines)
+        loss = torch.tensor(0.0)
+        for i, (sample_pred, sample_lines) in enumerate(zip(pred, lines)):
+            sample_pred = sample_pred.squeeze()
+            sample_lines = sample_lines.astype("int")
+            sample_lines[:, 0] = np.clip(sample_lines[:, 0], 0, sample_pred.shape[-1] - 1)
+            sample_lines[:, 1] = np.clip(sample_lines[:, 1], 0, sample_pred.shape[-2] - 1)
+            diff_sums_along_lines = []
+            for line in sample_lines:
+                # sorted in desscending order
+                ys, xs = skimage.draw.line(*(line.flatten()))
+                diff_sums_along_lines.append(torch.sum(torch.abs(torch.diff(sample_pred[xs, ys]))))
+            diff_sums_along_lines = torch.tensor(diff_sums_along_lines)
+            line_angles = compute_line_angles(torch.from_numpy(sample_lines))
+            # line_angles = torch.ones_like(diff_sums_along_lines) * torch.pi
+            # line_angles = torch.ones_like(diff_sums_along_lines) * torch.pi / 2
+            weights = degrees_to_weights(radians_to_degrees(line_angles))
+            loss += torch.sum(weights * diff_sums_along_lines)
         return loss
 
 
