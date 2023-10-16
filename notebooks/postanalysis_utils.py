@@ -45,7 +45,7 @@ def load_ds(args=default_args, mode="train", **extra_kwargs):
 
 
 def get_latest_ckpt_epoch(exp_name):
-    api = API()
+    api = API(api_key="W5npcWDiWeNPoB2OYkQvwQD0C")
     exp_api = api.get(f"kirilllzaitsev/layout-aware-monodepth/{exp_name}")
     ckpt_epochs = [
         int(re.match(r"model_(\d+)\.pth", x["fileName"]).group(1))
@@ -88,8 +88,8 @@ def load_artifacts_from_comet(exp_name, ckpt_epoch=None):
     return {"model_state_dict": model_state_dict, "args": args, "ds_args": ds_args}
 
 
-def load_exp_artifacts(exp_name, device, only_args=False):
-    artifacts = load_artifacts_from_comet(exp_name, ckpt_epoch=11)
+def load_exp_artifacts(exp_name, device, only_args=False, ckpt_epoch=None):
+    artifacts = load_artifacts_from_comet(exp_name, ckpt_epoch=ckpt_epoch)
     model_state_dict = artifacts["model_state_dict"]
     args = artifacts["args"]
     ds_args = artifacts["ds_args"]
