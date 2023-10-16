@@ -1,5 +1,12 @@
+import skimage
 import torch
 
+from layout_aware_monodepth.line_utils import (
+    get_deeplsd_pred,
+    load_custom_deeplsd,
+    load_deeplsd,
+)
+from layout_aware_monodepth.losses import LineLoss, VPLoss
 from layout_aware_monodepth.metrics import calc_metrics, get_metrics
 from layout_aware_monodepth.postprocessing import (
     compute_eval_mask,
@@ -17,6 +24,9 @@ class Trainer:
         device,
         clf_model=None,
         postproc_block=None,
+        use_vp_loss=False,
+        use_line_loss=False,
+        use_deeplsd=False,
     ):
         self.model = model
         self.optimizer = optimizer
@@ -25,16 +35,53 @@ class Trainer:
         self.device = device
         self.clf_model = clf_model
         self.postproc_block = postproc_block
+        self.use_vp_loss = use_vp_loss
+        self.use_line_loss = use_line_loss
+        if use_vp_loss:
+            self.vp_loss = VPLoss()
+        if use_line_loss:
+            self.line_loss = LineLoss()
 
-    def train_step(self, model, batch, criterion, optimizer):
+        if use_vp_loss or use_line_loss:
+            self.dlsd = load_deeplsd().to(device)
+        # elif use_deeplsd:
+        # detect_lines = use_vp_loss
+        # self.dlsd = load_custom_deeplsd(
+        #     detect_lines=detect_lines,
+        #     return_deeplsd_embedding=True,
+        #     return_both=True,
+        # ).to(device)
+
+    def train_step(self, model, batch, criterion, optimizer, epoch):
         model.train()
         y = batch["depth"].to(self.device)
         optimizer.zero_grad()
         out = self.model_forward(model, batch)
         loss = criterion(out, y)
+        if self.use_vp_loss:
+            assert epoch is not None, "Epoch must be provided for VP loss"
+            # if epoch >= 0:  # since no depth-based filtering is implemented yet
+            if epoch > 0:
+                # vp filtering should be done with the help of the predicted depth (get rid of noisy vps by threshold the predicted depth at the vp location. should be large-enough)
+                vp_res = self.compute_vp_loss(batch, out, use_depth_as_vp_filter=True)
+                # loss_vp = self.compute_vp_loss(batch, out, use_depth_as_vp_filter=False)
+                loss_vp_scale = 0.001
+                loss += loss_vp_scale * vp_res["vp_loss"]
+        if self.use_line_loss:
+            loss_line = self.compute_line_loss(batch, out)
+            loss_line_scale = 0.1
+            loss += loss_line_scale * loss_line
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
         optimizer.step()
+        res = {"loss": loss.item(), "pred": out}
+        if self.use_vp_loss:
+            if epoch > 0:
+                res["vp_loss"] = vp_res["vp_loss"].item()
+                res["min_vps_in_batch"] = vp_res["min_vps_in_batch"]
+                res["max_vps_in_batch"] = vp_res["max_vps_in_batch"]
+        return res
+
     def compute_line_loss(self, batch, out):
         x = batch["image"].to(self.device)
         line_res = get_deeplsd_pred(self.dlsd, x)
@@ -91,12 +138,11 @@ class Trainer:
         if self.clf_model is not None:
             assert self.postproc_block is not None
 
-            line_res = model.decoder.get_deeplsd_pred(x)
+            line_res = get_deeplsd_pred(self.dlsd, x)
 
             df_embed = line_res["df_embed"]
             concat1 = torch.cat([out, df_embed], dim=1)
             init_shape = concat1.shape[-2:]
-            import torchvision.transforms.functional as fn
 
             concat = self.resize_tensor(concat1, [i // 2 for i in init_shape])
             postproc_out = self.postproc_block(concat)
@@ -108,10 +154,9 @@ class Trainer:
             clf_inputs = self.resize_tensor(clf_inputs, [i // 2 for i in init_shape])
             out_confidence = self.clf_model(clf_inputs)
             out_confidence = self.resize_tensor(out_confidence, init_shape)
-            out = (
-                out * out_confidence[:, 0, :, :].unsqueeze(1)
-                + postproc_out * out_confidence[:, 1, :, :].unsqueeze(1)
-            )
+            out = out * out_confidence[:, 0, :, :].unsqueeze(
+                1
+            ) + postproc_out * out_confidence[:, 1, :, :].unsqueeze(1)
         return out
 
     def resize_tensor(self, tensor, size):
@@ -127,6 +172,14 @@ class Trainer:
             y = batch["depth"].to(self.device)
             pred = self.model_forward(model, batch)
             test_loss = criterion(pred, y)
+            if self.use_vp_loss:
+                vp_res = self.compute_vp_loss(batch, pred, use_depth_as_vp_filter=True)
+                result["vp_loss"] = vp_res["vp_loss"].item()
+                result["min_vps_in_batch"] = vp_res["min_vps_in_batch"]
+                result["max_vps_in_batch"] = vp_res["max_vps_in_batch"]
+            if self.use_line_loss:
+                loss_line = self.compute_line_loss(batch, pred)
+                result["loss_line"] = loss_line.item()
             result["loss"] = test_loss.item()
             result["pred"] = pred
             metrics = get_metrics(

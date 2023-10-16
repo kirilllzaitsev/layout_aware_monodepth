@@ -351,6 +351,7 @@ def run(args):
         criterion,
         device,
         use_vp_loss=args.use_vp_loss,
+        use_line_loss=args.use_line_loss,
         use_deeplsd=args.use_unet_clf or args.use_vp_loss,
     )
     if args.use_unet_clf:
@@ -566,6 +567,7 @@ def main():
     model_args_group.add_argument("--use_unet_clf", action="store_true")
     model_args_group.add_argument("--use_deeplsd_in_model", action="store_true")
     model_args_group.add_argument("--use_vp_loss", action="store_true")
+    model_args_group.add_argument("--use_line_loss", action="store_true")
     model_args_group.add_argument("--window_size", type=int, default=4)
     model_args_group.add_argument("--do_attend_line_info", action="store_true")
     model_args_group.add_argument("--line_embed_channels", type=int, default=None)
