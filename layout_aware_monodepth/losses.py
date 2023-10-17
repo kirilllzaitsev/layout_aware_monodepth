@@ -157,16 +157,15 @@ class LineLoss(nn.Module):
         self.name = "Line"
 
     def forward(self, pred, lines):
-        random_line_idx = 150
         loss = torch.tensor(0.0)
         for i, (sample_pred, sample_lines) in enumerate(zip(pred, lines)):
             sample_pred = sample_pred.squeeze()
             sample_lines = sample_lines.astype("int")
-            sample_lines[:, 0] = np.clip(sample_lines[:, 0], 0, sample_pred.shape[-1] - 1)
-            sample_lines[:, 1] = np.clip(sample_lines[:, 1], 0, sample_pred.shape[-2] - 1)
+            sample_lines[:, :, 0] = np.clip(sample_lines[:, :, 0], 0, sample_pred.shape[-1] - 1)
+            sample_lines[:, :, 1] = np.clip(sample_lines[:, :, 1], 0, sample_pred.shape[-2] - 1)
             diff_sums_along_lines = []
             for line in sample_lines:
-                # sorted in desscending order
+                # sorted in descending order
                 ys, xs = skimage.draw.line(*(line.flatten()))
                 diff_sums_along_lines.append(torch.sum(torch.abs(torch.diff(sample_pred[xs, ys]))))
             diff_sums_along_lines = torch.tensor(diff_sums_along_lines)
