@@ -39,9 +39,11 @@ class Trainer:
         self.use_line_loss = use_line_loss
         if use_vp_loss:
             self.vp_loss = VPLoss()
-            self.vp_loss_window_size = 20
+            self.vp_loss_window_size = args.vp_loss_window_size
+            self.vp_loss_scale = args.vp_loss_scale
         if use_line_loss:
             self.line_loss = LineLoss()
+            self.line_loss_scale = args.line_loss_scale
 
         if use_vp_loss or use_line_loss:
             self.dlsd = load_deeplsd().to(device)
@@ -66,12 +68,10 @@ class Trainer:
                 # vp filtering should be done with the help of the predicted depth (get rid of noisy vps by threshold the predicted depth at the vp location. should be large-enough)
                 vp_res = self.compute_vp_loss(batch, out, use_depth_as_vp_filter=True)
                 # loss_vp = self.compute_vp_loss(batch, out, use_depth_as_vp_filter=False)
-                loss_vp_scale = 0.001
-                loss += loss_vp_scale * vp_res["vp_loss"]
+                loss += self.vp_loss_scale * vp_res["vp_loss"]
         if self.use_line_loss:
             loss_line = self.compute_line_loss(batch, out)
-            loss_line_scale = 0.1
-            loss += loss_line_scale * loss_line
+            loss += self.line_loss_scale * loss_line
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
         optimizer.step()

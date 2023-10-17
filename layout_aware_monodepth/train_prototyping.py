@@ -134,9 +134,8 @@ def create_dataloaders(args, ds_args):
 
     if args.use_single_sample and args.do_overfit:
         ds_args.batch_size = 1
-        args.num_epochs = 100
         args.vis_freq_epochs = 10
-        ds_subset = torch.utils.data.Subset(train_ds, range(0, 1))
+        ds_subset = torch.utils.data.Subset(train_ds, range(10, 11))
         train_subset = val_subset = test_subset = ds_subset
         num_workers = 0
     else:
@@ -568,6 +567,9 @@ def main():
     model_args_group.add_argument("--use_deeplsd_in_model", action="store_true")
     model_args_group.add_argument("--use_vp_loss", action="store_true")
     model_args_group.add_argument("--use_line_loss", action="store_true")
+    model_args_group.add_argument("--vp_loss_scale", type=float, default=0.001)
+    model_args_group.add_argument("--vp_loss_window_size", type=int, default=10)
+    model_args_group.add_argument("--line_loss_scale", type=float, default=0.005)
     model_args_group.add_argument("--window_size", type=int, default=4)
     model_args_group.add_argument("--do_attend_line_info", action="store_true")
     model_args_group.add_argument("--line_embed_channels", type=int, default=None)
