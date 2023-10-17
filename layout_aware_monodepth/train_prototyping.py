@@ -3,6 +3,7 @@ import glob
 import json
 import os
 import re
+import sys
 
 import matplotlib.pyplot as plt
 import torch
@@ -266,6 +267,10 @@ def run(args):
     os.makedirs(exp_dir, exist_ok=True)
     print(f"Experiment dir: {exp_dir}")
 
+    print("RUNTIME ARGS\n" + " ".join(sys.argv[1:]))
+    if cfg.is_cluster:
+        print(f"{os.environ['SLURM_JOB_ID']=}")
+
     args, ds_args = prepare_args(args, experiment, exp_dir)
 
     train_ds, train_loader, val_loader, test_loader = create_dataloaders(args, ds_args)
@@ -495,11 +500,6 @@ def run(args):
 
 
 def main():
-    import sys
-
-    print("RUNTIME ARGS\n" + " ".join(sys.argv[1:]))
-    if cfg.is_cluster:
-        print(f"{os.environ['SLURM_JOB_ID']=}")
 
     parser = argparse.ArgumentParser()
 
