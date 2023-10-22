@@ -12,6 +12,7 @@ from layout_aware_monodepth.postprocessing import (
     compute_eval_mask,
     postproc_eval_depths,
 )
+from layout_aware_monodepth.ssl_utils import compute_triplet_loss, get_pose_model
 
 
 class Trainer:
@@ -54,13 +55,47 @@ class Trainer:
         #     return_deeplsd_embedding=True,
         #     return_both=True,
         # ).to(device)
+        self.do_ssl = getattr(args, "do_ssl", False)
+        if self.do_ssl:
+            self.pose_model = get_pose_model(self.device)
 
-    def train_step(self, model, batch, criterion, optimizer, epoch):
+    def train_step(self, model, batch, criterion, optimizer, epoch, **ssl_kwargs):
         model.train()
-        y = batch["depth"].to(self.device)
         optimizer.zero_grad()
         out = self.model_forward(model, batch)
-        loss = criterion(out, y)
+
+        res = {}
+
+        if self.do_ssl:
+            image0 = batch["image"].to(self.device)
+            adj_imgs = batch["adj_imgs"].to(self.device)
+            image1 = adj_imgs[:, 0]
+            image2 = adj_imgs[:, 1]
+            intrinsics = batch["intrinsics"].to(self.device)
+            pose01 = self.pose_model.forward(image0, image1)
+            pose02 = self.pose_model.forward(image0, image2)
+            loss, loss_info = compute_triplet_loss(
+                image0=image0,
+                image1=image1,
+                image2=image2,
+                output_depth0=out,
+                intrinsics=intrinsics,
+                pose01=pose01,
+                pose02=pose02,
+                w_structure=0.95,
+                w_sparse_depth=2.90,
+                w_smoothness=0.04,
+            )
+
+            res["loss_color"] = loss_info["loss_color"]
+            res["loss_structure"] = loss_info["loss_structure"]
+            res["loss_smoothness"] = loss_info["loss_smoothness"]
+        else:
+            y = batch["depth"].to(self.device)
+            loss = criterion(out, y)
+        res["loss"] = loss.item()
+        res["pred"] = out
+
         if self.use_vp_loss:
             assert epoch is not None, "Epoch must be provided for VP loss"
             # if epoch >= 0:  # since no depth-based filtering is implemented yet
@@ -69,13 +104,14 @@ class Trainer:
                 vp_res = self.compute_vp_loss(batch, out, use_depth_as_vp_filter=True)
                 # loss_vp = self.compute_vp_loss(batch, out, use_depth_as_vp_filter=False)
                 loss += self.vp_loss_scale * vp_res["vp_loss"]
+
         if self.use_line_loss:
             loss_line = self.compute_line_loss(batch, out)
             loss += self.line_loss_scale * loss_line
+
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
         optimizer.step()
-        res = {"loss": loss.item(), "pred": out}
         if self.use_vp_loss:
             if epoch > 0:
                 res["vp_loss"] = vp_res["vp_loss"].item()
@@ -100,6 +136,7 @@ class Trainer:
             vps = [
                 torch.tensor([vp[0] / vp[2], vp[1] / vp[2]]).float()
                 for vp in line_res["vps"][idx]
+                if vp[2] != 0
             ]
             h, w = pred.shape[-2:]
             vps = [
@@ -123,7 +160,9 @@ class Trainer:
             min_vps_in_batch = min(min_vps_in_batch, len(vps))
             max_vps_in_batch = max(max_vps_in_batch, len(vps))
             for vp in vps:
-                vp_loss += self.vp_loss(pred[idx], vp, window_size=self.vp_loss_window_size)
+                vp_loss += self.vp_loss(
+                    pred[idx], vp, window_size=self.vp_loss_window_size
+                )
         return {
             "vp_loss": vp_loss,
             "min_vps_in_batch": min_vps_in_batch,
@@ -136,6 +175,7 @@ class Trainer:
             out = model(x, batch["line_embed"].to(self.device))
         else:
             out = model(x)
+
         if self.clf_model is not None:
             assert self.postproc_block is not None
 
@@ -158,6 +198,7 @@ class Trainer:
             out = out * out_confidence[:, 0, :, :].unsqueeze(
                 1
             ) + postproc_out * out_confidence[:, 1, :, :].unsqueeze(1)
+
         return out
 
     def resize_tensor(self, tensor, size):
