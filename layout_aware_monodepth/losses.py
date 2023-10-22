@@ -157,19 +157,18 @@ class LineLoss(nn.Module):
         self.name = "Line"
 
     def forward(self, pred, lines):
-        loss = torch.tensor(0.0)
+        loss = torch.tensor(0.0, device=pred.device)
         for i, (sample_pred, sample_lines) in enumerate(zip(pred, lines)):
             sample_pred = sample_pred.squeeze()
-            sample_lines = sample_lines.astype("int")
-            sample_lines[:, :, 0] = np.clip(sample_lines[:, :, 0], 0, sample_pred.shape[-1] - 1)
-            sample_lines[:, :, 1] = np.clip(sample_lines[:, :, 1], 0, sample_pred.shape[-2] - 1)
-            diff_sums_along_lines = []
-            for line in sample_lines:
+            sample_lines = torch.from_numpy(sample_lines.astype("int")).to(sample_pred.device)
+            sample_lines[:, :, 0] = torch.clip(sample_lines[:, :, 0], 0, sample_pred.shape[-1] - 1)
+            sample_lines[:, :, 1] = torch.clip(sample_lines[:, :, 1], 0, sample_pred.shape[-2] - 1)
+            diff_sums_along_lines = torch.zeros(sample_lines.shape[0], device=sample_pred.device)
+            for i,line in enumerate(sample_lines):
                 # sorted in descending order
                 ys, xs = skimage.draw.line(*(line.flatten()))
-                diff_sums_along_lines.append(torch.sum(torch.abs(torch.diff(sample_pred[xs, ys]))))
-            diff_sums_along_lines = torch.tensor(diff_sums_along_lines)
-            line_angles = compute_line_angles(torch.from_numpy(sample_lines))
+                diff_sums_along_lines[i] = (torch.sum(torch.abs(torch.diff(sample_pred[xs, ys]))))
+            line_angles = compute_line_angles(sample_lines)
             # line_angles = torch.ones_like(diff_sums_along_lines) * torch.pi
             # line_angles = torch.ones_like(diff_sums_along_lines) * torch.pi / 2
             weights = degrees_to_weights(radians_to_degrees(line_angles))
