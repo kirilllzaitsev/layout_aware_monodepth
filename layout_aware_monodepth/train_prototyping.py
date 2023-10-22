@@ -14,6 +14,9 @@ from tqdm import tqdm
 
 from layout_aware_monodepth.cfg import cfg
 from layout_aware_monodepth.data.monodepth import KITTIDataset, NYUv2Dataset
+from layout_aware_monodepth.data.monodepth_unsup import (
+    KITTIDataset as KITTIDatasetUnsup,
+)
 from layout_aware_monodepth.data.transforms import test_transform, train_transform
 from layout_aware_monodepth.extras import EarlyStopper
 from layout_aware_monodepth.logging_utils import log_metric, log_params_to_exp
@@ -119,7 +122,10 @@ def upd_ds_args_with_runtime_args(args, ds_args):
 
 def create_dataloaders(args, ds_args):
     if args.ds == "kitti":
-        ds_cls = KITTIDataset
+        if args.do_ssl:
+            ds_cls = KITTIDatasetUnsup
+        else:
+            ds_cls = KITTIDataset
     else:
         ds_cls = NYUv2Dataset
 
@@ -174,7 +180,7 @@ def create_dataloaders(args, ds_args):
 
         if args.ds == "kitti":
             # 85-15 shuffled split partitioned by scenes
-            train_subset = KITTIDataset(
+            train_subset = ds_cls(
                 ds_args,
                 "train",
                 ds_args.split,
@@ -182,7 +188,7 @@ def create_dataloaders(args, ds_args):
                 do_augment=False,
             )
             train_subset = torch.utils.data.Subset(train_subset, range(0, 12_000))
-            val_subset = KITTIDataset(
+            val_subset = ds_cls(
                 ds_args,
                 "val",
                 ds_args.split,
@@ -499,7 +505,6 @@ def run(args):
 
 
 def main():
-
     parser = argparse.ArgumentParser()
 
     ds_args_group = parser.add_argument_group("ds_args")
@@ -557,6 +562,7 @@ def main():
         "--decoder_attention_type", default=None, choices=["scse"]
     )
     model_args_group.add_argument("--use_attn_before_se", action="store_true")
+    model_args_group.add_argument("--do_ssl", action="store_true")
     model_args_group.add_argument(
         "--use_df_as_self_attn_pos_embed", action="store_true"
     )
