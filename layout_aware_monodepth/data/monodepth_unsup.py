@@ -154,11 +154,11 @@ class MonodepthDataset(Dataset):
         orig_shape = image.shape
         image = self.prep_img(image)
 
-        scale_factor_x = self.target_shape[0] / orig_shape[0]
-        scale_factor_y = self.target_shape[1] / orig_shape[1]
+        scale_factor_x = self.target_shape[0] / orig_shape[1]
+        scale_factor_y = self.target_shape[1] / orig_shape[0]
         intrinsics = self.load_intrinsics(image_path)
-        intrinsics[0] /= scale_factor_x
-        intrinsics[1] /= scale_factor_y
+        intrinsics[0] *= scale_factor_x
+        intrinsics[1] *= scale_factor_y
 
         depth_gt = resize_inputs(depth_gt, target_shape=self.target_shape)
 
