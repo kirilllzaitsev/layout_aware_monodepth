@@ -48,13 +48,6 @@ class Trainer:
 
         if use_vp_loss or use_line_loss:
             self.dlsd = load_deeplsd().to(device)
-        # elif use_deeplsd:
-        # detect_lines = use_vp_loss
-        # self.dlsd = load_custom_deeplsd(
-        #     detect_lines=detect_lines,
-        #     return_deeplsd_embedding=True,
-        #     return_both=True,
-        # ).to(device)
         self.do_ssl = getattr(args, "do_ssl", False)
         if self.do_ssl:
             self.pose_model = get_pose_model(self.device)
@@ -87,23 +80,25 @@ class Trainer:
                 w_smoothness=0.04,
             )
 
-            res["loss_color"] = loss_info["loss_color"]
-            res["loss_structure"] = loss_info["loss_structure"]
-            res["loss_smoothness"] = loss_info["loss_smoothness"]
+            res["loss_color"] = loss_info["loss_color"].item()
+            res["loss_structure"] = loss_info["loss_structure"].item()
+            res["loss_smoothness"] = loss_info["loss_smoothness"].item()
         else:
             y = batch["depth"].to(self.device)
             loss = criterion(out, y)
+
         res["loss"] = loss.item()
         res["pred"] = out
 
         if self.use_vp_loss:
             assert epoch is not None, "Epoch must be provided for VP loss"
-            # if epoch >= 0:  # since no depth-based filtering is implemented yet
             if epoch > 0:
-                # vp filtering should be done with the help of the predicted depth (get rid of noisy vps by threshold the predicted depth at the vp location. should be large-enough)
                 vp_res = self.compute_vp_loss(batch, out, use_depth_as_vp_filter=True)
-                # loss_vp = self.compute_vp_loss(batch, out, use_depth_as_vp_filter=False)
                 loss += self.vp_loss_scale * vp_res["vp_loss"]
+
+                res["vp_loss"] = vp_res["vp_loss"].item()
+                res["min_vps_in_batch"] = vp_res["min_vps_in_batch"]
+                res["max_vps_in_batch"] = vp_res["max_vps_in_batch"]
 
         if self.use_line_loss:
             loss_line = self.compute_line_loss(batch, out)
@@ -112,11 +107,6 @@ class Trainer:
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
         optimizer.step()
-        if self.use_vp_loss:
-            if epoch > 0:
-                res["vp_loss"] = vp_res["vp_loss"].item()
-                res["min_vps_in_batch"] = vp_res["min_vps_in_batch"]
-                res["max_vps_in_batch"] = vp_res["max_vps_in_batch"]
         return res
 
     def compute_line_loss(self, batch, out):
