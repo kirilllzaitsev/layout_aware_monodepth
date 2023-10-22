@@ -135,8 +135,10 @@ def get_pose_model(device, encoder_type="resnet18"):
         device=device,
     )
 
-    pose_model.train()
+    pose_model.eval()
     pose_model.restore_model(pose_model_restore_path)
+    for param in pose_model.parameters():
+        param.requires_grad = False
     return pose_model
 
 
