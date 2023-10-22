@@ -85,7 +85,13 @@ def load_artifacts_from_comet(exp_name, ckpt_epoch=None):
     args = argparse.Namespace(**train_args["args"])
     ds_args = argparse.Namespace(**train_args["ds_args"])
     upd_ds_args_with_runtime_args(args, ds_args)
-    return {"model_state_dict": model_state_dict, "args": args, "ds_args": ds_args}
+    model_name = "dnet" if args.use_dnet else "resnet"
+    return {
+        "model_state_dict": model_state_dict,
+        "args": args,
+        "ds_args": ds_args,
+        "model_name": model_name,
+    }
 
 
 def load_exp_artifacts(exp_name, device, only_args=False, ckpt_epoch=None):
@@ -99,7 +105,10 @@ def load_exp_artifacts(exp_name, device, only_args=False, ckpt_epoch=None):
     if only_args:
         return args, ds_args
 
-    model = load_depth_model(args, device, model_state_dict=model_state_dict)
+    if artifacts["model_name"] == "dnet":
+        model = load_dnet(device, checkpoint=model_state_dict)
+    else:
+        model = load_depth_model(args, device, model_state_dict=model_state_dict)
 
     return model, args, ds_args
 
@@ -152,30 +161,40 @@ def load_depth_model(args, device, model_state_dict=None, exp_name=None):
 
 def load_dnet(
     device,
-    pretrained_model="/mnt/wext/msc_studies/monodepth_project/related_work/D-Net/dnet/pretrained_models/efficientnet_b0-kitti_baseline/model_checkpoint",
+    checkpoint=None,
+    pretrained_model=None,
+    # pretrained_model="/mnt/wext/msc_studies/monodepth_project/related_work/D-Net/dnet/pretrained_models/efficientnet_b0-kitti_baseline/model_checkpoint",
     params_path=f"{root_dir}/layout_aware_monodepth/models/dnet/arguments_train_kitti_eigen_debug.txt",
 ):
     from layout_aware_monodepth.models.dnet.dnet import init_dnet
 
+    assert not (
+        checkpoint is None and pretrained_model is None
+    ), "Either provide checkpoint or pretrained_model"
+
     gpu_id = "0"
     dnet_model = init_dnet(params_path)
     # if os.path.isfile(pretrained_model):
-    print("Loading checkpoint '{}'".format(pretrained_model))
-    if gpu_id != "-1":
-        checkpoint = torch.load(pretrained_model)
+    if checkpoint is not None:
+        # strict=False handles missing deeplsd
+        dnet_model.load_state_dict(checkpoint, strict=False)
     else:
-        loc = "cuda:{}".format(gpu_id)
-        checkpoint = torch.load(pretrained_model, map_location=loc)
+        print("Loading checkpoint '{}'".format(pretrained_model))
+        if gpu_id != "-1":
+            checkpoint = torch.load(pretrained_model)
+        else:
+            loc = "cuda:{}".format(gpu_id)
+            checkpoint = torch.load(pretrained_model, map_location=loc)
 
-    epoch = checkpoint["epoch"]
-    dnet_model.load_state_dict(
-        {k.replace("module.", ""): v for k, v in checkpoint["model"].items()}
-    )
+        epoch = checkpoint["epoch"]
+        dnet_model.load_state_dict(
+            {k.replace("module.", ""): v for k, v in checkpoint["model"].items()}
+        )
+        print("Loaded checkpoint '{}' (Epoch {})".format(pretrained_model, epoch))
     dnet_model.eval()
     dnet_model.to(device)
     if (
         "history" in checkpoint
     ):  # Allows history to be loaded meaning progress data is preserved.
         history = checkpoint["history"]
-    print("Loaded checkpoint '{}' (Epoch {})".format(pretrained_model, epoch))
     return dnet_model
