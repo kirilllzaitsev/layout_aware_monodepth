@@ -61,7 +61,8 @@ class CustomDeepLSD(DeepLSD):
 
     def forward(self, x):
         # x must be dict containing an 'image' key with a normalized image
-        x = x["image"]
+        if isinstance(x, dict):
+            x = x["image"]
         self.interim_feature_maps = []
         base = self.backbone(x)
         outputs = {}

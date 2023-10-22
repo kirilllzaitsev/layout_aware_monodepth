@@ -370,6 +370,8 @@ class DepthModel(nn.Module):
                     base_block.se = new_se_block
 
     def get_deeplsd_pred(self, x):
+        if isinstance(x, dict):
+            x = x["image"]
         gray_img = x.mean(dim=1, keepdim=True)
         line_res = self.dlsd(gray_img)
         return line_res
