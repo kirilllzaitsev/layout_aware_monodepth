@@ -89,6 +89,10 @@ def plot_samples_and_preds(
                 ax_3.set_title("Depth Difference", fontsize=fontsize)
             if with_lines_concat:
                 ax_4.set_title("Line channel", fontsize=fontsize)
+            if with_img_depth_overlay:
+                ax_5.set_title(
+                    f"{img_weight}*Image + {1-img_weight}*Depth", fontsize=fontsize
+                )
     fig.subplots_adjust(wspace=0.05, hspace=0.05)
     plt.tight_layout()
     return fig
