@@ -227,3 +227,15 @@ def plot_attention_rollout(att_mat, img_size, heads_agg="mean"):
     print(mask.shape)
     mask = cv2.resize(mask / mask.max(), img_size)[..., np.newaxis]
     return mask
+
+
+def overlay_img_and_depth(img, depth, max_depth, img_weight=0.2):
+    if img.shape[0] < img.shape[-1]:
+        img = img.permute(1, 2, 0)
+    img = img.detach().cpu().numpy().squeeze()
+    depth = depth.detach().cpu().numpy().squeeze()
+    depth /= max_depth
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
+    return cv2.addWeighted(img, img_weight, depth, 1 - img_weight, 0)
+
