@@ -22,6 +22,7 @@ from layout_aware_monodepth.models.dnet.components import (
     Dense_ASPP,
     Pyramid_Reduction,
     Upconv,
+    concatenate_hw_padding,
 )
 
 
@@ -210,6 +211,7 @@ class Decoder(nn.Module):
 
         upconv5 = self.upconv5(dense_features)  # H/16
         features5 = self.adjust5(skip5)
+        features5 = concatenate_hw_padding(features5, tensor_target=upconv5)
         concat5 = torch.cat([upconv5, features5], dim=1)
 
         # Dense ASPP 1
@@ -219,6 +221,7 @@ class Decoder(nn.Module):
 
         upconv4 = self.upconv4(aspp5)  # H/8
         features4 = self.adjust4(skip4)
+        features4 = concatenate_hw_padding(features4, tensor_target=upconv4)
         concat4 = torch.cat([upconv4, features4, pyr5_4], dim=1)
 
         # Dense ASPP 2
@@ -228,6 +231,7 @@ class Decoder(nn.Module):
 
         upconv3 = self.upconv3(aspp4)  # H/4
         features3 = self.adjust3(skip3)
+        features3 = concatenate_hw_padding(features3, tensor_target=upconv3)
         concat3 = torch.cat([upconv3, features3, pyr4_3], dim=1)
         conv3 = self.conv3(concat3)
 
@@ -241,6 +245,7 @@ class Decoder(nn.Module):
             and "convnext" not in self.params.encoder
         ) or "resnet" in self.params.encoder:  # Only include the last level of resolution if it is available.
             features2 = self.adjust2(skip2)
+            features2 = concatenate_hw_padding(features2, tensor_target=upconv2)
             concat2 = torch.cat([upconv2, features2, pyr3_2], dim=1)
         else:
             concat2 = torch.cat([upconv2, pyr3_2], dim=1)
@@ -286,7 +291,6 @@ class Decoder(nn.Module):
             )  # Transformers: (426, 560) for NYU, (352, 1216) for KITTI
             # CNNs: (416, 544) for NYU, (352, 1216) for KITTI
         return depth
-
 
 
 class Encoder(nn.Module):

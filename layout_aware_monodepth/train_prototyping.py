@@ -122,7 +122,7 @@ def upd_ds_args_with_runtime_args(args, ds_args):
 
 def create_dataloaders(args, ds_args):
     if args.ds == "kitti":
-        if args.do_ssl:
+        if getattr(args, "do_ssl", False):
             ds_cls = KITTIDatasetUnsup
         else:
             ds_cls = KITTIDataset
@@ -264,6 +264,10 @@ def run(args):
     setup_env()
 
     experiment = create_tracking_exp(args)
+
+    experiment.log_code("./data/monodepth.py")
+    experiment.log_code("./data/transforms.py")
+
     exp_dir = (
         f"{cfg.exp_base_dir}/{experiment.name}"
         if cfg.is_cluster
@@ -574,7 +578,7 @@ def main():
     model_args_group.add_argument("--use_vp_loss", action="store_true")
     model_args_group.add_argument("--use_line_loss", action="store_true")
     model_args_group.add_argument("--vp_loss_scale", type=float, default=0.001)
-    model_args_group.add_argument("--vp_loss_window_size", type=int, default=10)
+    model_args_group.add_argument("--vp_loss_window_size", type=int, default=5)
     model_args_group.add_argument("--line_loss_scale", type=float, default=0.005)
     model_args_group.add_argument("--window_size", type=int, default=4)
     model_args_group.add_argument("--do_attend_line_info", action="store_true")

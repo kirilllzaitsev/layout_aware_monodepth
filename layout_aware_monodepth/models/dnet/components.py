@@ -11,6 +11,31 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def concatenate_hw_padding(tensor_src, tensor_target=None, shape_target=None):
+    """
+    Concatenates two NxCxHxW tensors, padding along H and W dimensions if needed.
+    """
+
+    assert tensor_target is not None or shape_target is not None
+
+    hw = (
+        (tensor_target.size(2), tensor_target.size(3))
+        if tensor_target is not None
+        else shape_target
+    )
+
+    # Determine the target shape based on the maximum H and W
+    max_h = max(tensor_src.size(2), hw[0])
+    max_w = max(tensor_src.size(3), hw[1])
+
+    # Compute padding sizes
+    pad_tensor_src = (0, max_w - tensor_src.size(3), 0, max_h - tensor_src.size(2))
+
+    # Apply padding
+    tensor_src_padded = F.pad(tensor_src, pad_tensor_src, "constant", 0)
+    return tensor_src_padded
+
+
 class Adjustment_Layer(nn.Module):
 
     """The D-Net adjustment layer to enable ViT and Swin to work with the

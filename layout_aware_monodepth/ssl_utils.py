@@ -12,7 +12,6 @@ from rsl_depth_completion.models.benchmarking.calibrated_backprojection_network.
 from layout_aware_monodepth.cfg import cfg
 
 
-@torch.no_grad()
 def compute_triplet_loss(
     image0,
     image1,
