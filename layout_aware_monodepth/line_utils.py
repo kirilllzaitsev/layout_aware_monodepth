@@ -172,3 +172,48 @@ def rescale_lines(lines, orig_shape, target_shape):
             target_shape[1] / orig_shape[0],
         ]
     )
+
+
+def filter_lines_by_length(batched_lines, min_length=10, use_min_length=False):
+    if not isinstance(batched_lines, list):
+        batched_lines = [batched_lines]
+
+    filtered_lines = []
+    for lines in batched_lines:
+        line_lengths = np.sqrt(
+            (lines[:, 0, 0] - lines[:, 1, 0]) ** 2
+            + (lines[:, 0, 1] - lines[:, 1, 1]) ** 2
+        )
+        len_mean = np.mean(line_lengths)
+        new_lines = []
+        for idx, line in enumerate(lines):
+            length = line_lengths[idx]
+            if use_min_length:
+                if length > min_length:
+                    new_lines.append(line)
+            else:
+                if length > len_mean / 4:
+                    new_lines.append(line)
+        filtered_lines.append(np.array(new_lines))
+    return filtered_lines if len(filtered_lines) > 1 else filtered_lines[0]
+
+
+def filter_lines_by_angle(
+    batched_lines, low_thresh=np.pi / 10, high_thresh=np.pi / 2.5
+):
+    if not isinstance(batched_lines, list):
+        batched_lines = [batched_lines]
+
+    filtered_lines = []
+    for lines in batched_lines:
+        line_slopes = np.abs(
+            (lines[:, 1, 1] - lines[:, 0, 1]) / (lines[:, 1, 0] - lines[:, 0, 0] + 1e-6)
+        )
+        line_angles = np.arctan(line_slopes)
+        new_lines = []
+
+        for idx, line in enumerate(lines):
+            if low_thresh < line_angles[idx] < high_thresh:
+                new_lines.append(line)
+        filtered_lines.append(np.array(new_lines))
+    return filtered_lines if len(filtered_lines) > 1 else filtered_lines[0]
