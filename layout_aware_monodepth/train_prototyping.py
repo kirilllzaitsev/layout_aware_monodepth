@@ -5,6 +5,7 @@ import os
 import re
 import sys
 
+import comet_ml
 import matplotlib.pyplot as plt
 import torch
 import torch.optim as optim
@@ -141,7 +142,7 @@ def create_dataloaders(args, ds_args):
     if args.use_single_sample and args.do_overfit:
         ds_args.batch_size = 1
         args.vis_freq_epochs = 10
-        ds_subset = torch.utils.data.Subset(train_ds, range(10, 11))
+        ds_subset = torch.utils.data.Subset(train_ds, range(110, 111))
         train_subset = val_subset = test_subset = ds_subset
         num_workers = 0
     else:

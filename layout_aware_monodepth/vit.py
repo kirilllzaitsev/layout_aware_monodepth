@@ -84,7 +84,9 @@ class Transformer(nn.Module):
 
     def forward(self, x):
         for attn, ff in self.layers:
-            x = attn(x) + x
+            res_x = x
+            x = attn(x)
+            x += res_x
             x = ff(x) + x
 
         return self.norm(x)
@@ -96,7 +98,6 @@ class ViT(nn.Module):
         *,
         image_size,
         patch_size,
-        num_classes,
         dim,
         depth,
         heads,
@@ -133,7 +134,7 @@ class ViT(nn.Module):
             nn.LayerNorm(dim),
         )
 
-        # self.pos_embedding = nn.Parameter(torch.randn(1, num_patches, dim))
+        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches, dim))
         self.dropout = nn.Dropout(emb_dropout)
 
         self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout)
@@ -145,7 +146,7 @@ class ViT(nn.Module):
         x = self.to_patch_embedding(img)
         b, n, _ = x.shape
 
-        # x += self.pos_embedding[:, :(n)]
+        x += self.pos_embedding[:, :(n)]
         x = self.dropout(x)
 
         x = self.transformer(x)

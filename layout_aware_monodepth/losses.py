@@ -158,6 +158,8 @@ class LineLoss(nn.Module):
 
     def forward(self, pred, lines):
         loss = torch.tensor(0.0, device=pred.device)
+        if len(lines[0].shape) == 2:
+            lines = [lines]
         for i, (sample_pred, sample_lines) in enumerate(zip(pred, lines)):
             sample_pred = sample_pred.squeeze()
             if len(sample_lines) == 0:
