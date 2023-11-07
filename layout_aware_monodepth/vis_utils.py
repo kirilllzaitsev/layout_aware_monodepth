@@ -6,23 +6,42 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from einops import rearrange
+from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from PIL import Image
 
 
-def attach_colorbar(ax, img, vmin=0, vmax=1):
+def attach_colorbar(ax, img=None, vmin=0, vmax=1, scaler=1.0):
+    def formatter(x, pos):
+        return f"{x * scaler:.0f}"
+
+    img = img or ax.images[0]
+
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
-    cbar = ax.figure.colorbar(img, cax=cax)
+    cbar = ax.figure.colorbar(img, cax=cax, format=formatter)
     cbar.mappable.set_clim(vmin=vmin, vmax=vmax)
 
 
 def plot_samples_and_preds(
-    batch: dict, preds, with_colorbar=False, with_depth_diff=False, max_depth=1.0
+    batch: dict,
+    preds,
+    with_colorbar=False,
+    with_depth_diff=False,
+    with_img_depth_overlay=False,
+    max_depth=1.0,
+    image=None,
+    depth=None,
 ):
+    if image is not None:
+        batch["image"] = image
+    if depth is not None:
+        batch["depth"] = depth
+
     batch_size = len(batch["image"])
     with_lines_concat = batch["image"].shape[1] == 4
-    ncols = 3 + with_depth_diff + with_lines_concat
+    ncols = 3 + with_depth_diff + with_lines_concat + with_img_depth_overlay
     fig, axs = plt.subplots(
         batch_size,
         ncols,
@@ -37,8 +56,16 @@ def plot_samples_and_preds(
             img = img.permute(1, 2, 0)
         else:
             img = batch["image"][i].permute(1, 2, 0)
-        in_depth = batch["depth"][i] * max_depth
-        d = preds[i] * max_depth
+        in_depth = batch["depth"][i]
+        if in_depth.shape[0] == 1:
+            in_depth = in_depth.permute(1, 2, 0)
+        if in_depth.max() <= 1:
+            in_depth *= max_depth
+        d = preds[i]
+        if d.max() <= 1:
+            d *= max_depth
+        if d.shape[0] < d.shape[-1]:
+            d = d.permute(1, 2, 0)
 
         if batch_size == 1:
             ax_0 = axs[0]
@@ -47,7 +74,9 @@ def plot_samples_and_preds(
             if with_depth_diff:
                 ax_3 = axs[3]
             if with_lines_concat:
-                ax_4 = axs[4]
+                ax_4 = axs[3 + with_depth_diff]
+            if with_img_depth_overlay:
+                ax_5 = axs[3 + with_depth_diff + with_lines_concat]
         else:
             ax_0 = axs[i, 0]
             ax_1 = axs[i, 1]
@@ -55,7 +84,9 @@ def plot_samples_and_preds(
             if with_depth_diff:
                 ax_3 = axs[i, 3]
             if with_lines_concat:
-                ax_4 = axs[i, 4]
+                ax_4 = axs[i, 3 + with_depth_diff]
+            if with_img_depth_overlay:
+                ax_5 = axs[i, 3 + with_depth_diff + with_lines_concat]
 
         ax_0.imshow(img)
         ax_1.imshow(in_depth)
@@ -69,12 +100,19 @@ def plot_samples_and_preds(
         if with_depth_diff:
             axs_row.append(ax_3)
             diff = np.abs(in_depth - d)
-            ax_3.imshow(diff, cmap="magma")
+            mask = in_depth > 1e-3
+            valid_diff = np.where(mask, diff, 0)
+            valid_diff = cv2.dilate(valid_diff, np.ones((2, 2)))
+            ax_3.imshow(valid_diff, cmap="magma")
             attach_colorbar(ax_3, ax_3.images[0], vmax=None)
 
         if with_lines_concat:
             axs_row.append(ax_4)
             ax_4.imshow(batch["image"][i][3])
+
+        if with_img_depth_overlay:
+            axs_row.append(ax_5)
+            overlay_img_and_depth(ax_5, img, d)
 
         for ax in axs_row:
             ax.axis("off")
@@ -91,7 +129,8 @@ def plot_samples_and_preds(
                 ax_4.set_title("Line channel", fontsize=fontsize)
             if with_img_depth_overlay:
                 ax_5.set_title(
-                    f"{img_weight}*Image + {1-img_weight}*Depth", fontsize=fontsize
+                    "Overlaid depth",
+                    fontsize=fontsize,
                 )
     fig.subplots_adjust(wspace=0.05, hspace=0.05)
     plt.tight_layout()
@@ -190,6 +229,14 @@ def plot_attention_heatmap(attention_scores, img_h, img_w):
     attentions = cv2.resize(attentions.numpy(), dsize=dsize)
     return attentions
 
+
+# attention_scores = torch.randn(3072, 4, 16, 16)
+# image = torch.randn(1, 3, 256//4, 768//4)
+# x=plot_attention_heatmap(attention_scores, image)
+# print(x.shape)
+# exit(0)
+
+
 def plot_attention_rollout(att_mat, img_size, heads_agg="mean"):
     # att_mat = torch.stack(att_mat).squeeze(1)
 
@@ -233,13 +280,78 @@ def plot_attention_rollout(att_mat, img_size, heads_agg="mean"):
     return mask
 
 
-def overlay_img_and_depth(img, depth, max_depth, img_weight=0.2):
+def overlay_img_and_depth(ax, img, depth, depth_alpha=0.6):
     if img.shape[0] < img.shape[-1]:
         img = img.permute(1, 2, 0)
-    img = img.detach().cpu().numpy().squeeze()
-    depth = depth.detach().cpu().numpy().squeeze()
-    depth /= max_depth
-    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    ax.imshow(img)
 
-    return cv2.addWeighted(img, img_weight, depth, 1 - img_weight, 0)
+    cmap = plt.get_cmap("magma")
 
+    vmin = 0
+    vmax = depth.max()
+
+    # Create a new axes for the colorbar adjacent to the main axes
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+
+    # Attach colorbar to the new axes
+    cbar = plt.colorbar(
+        mappable=cm.ScalarMappable(
+            cmap=cmap, norm=cm.colors.Normalize(vmin=vmin, vmax=vmax)
+        ),
+        cax=cax,
+    )
+    cbar.set_label("Depth")
+
+    ax.imshow(depth, cmap=cmap, alpha=depth_alpha, vmin=vmin, vmax=vmax)
+    return ax
+
+
+def get_pointcloud_from_rgbd(
+    image: np.array,
+    depth: np.array,
+    mask: np.ndarray,
+    intrinsic_matrix: np.array,
+    extrinsic_matrix: np.array = None,
+):
+    depth = np.array(depth).squeeze()
+    mask = np.array(mask).squeeze()
+    # Mask the depth array
+    masked_depth = np.ma.masked_where(mask == False, depth)
+    # masked_depth = np.ma.masked_greater(masked_depth, 8000)
+    # Create idx array
+    idxs = np.indices(masked_depth.shape)
+    u_idxs = idxs[1]
+    v_idxs = idxs[0]
+    # Get only non-masked depth and idxs
+    z = masked_depth[~masked_depth.mask]
+    compressed_u_idxs = u_idxs[~masked_depth.mask]
+    compressed_v_idxs = v_idxs[~masked_depth.mask]
+    image = np.stack(
+        [image[..., i][~masked_depth.mask] for i in range(image.shape[-1])], axis=-1
+    )
+
+    # Calculate local position of each point
+    # Apply vectorized math to depth using compressed arrays
+    cx = intrinsic_matrix[0, 2]
+    fx = intrinsic_matrix[0, 0]
+    x = (compressed_u_idxs - cx) * z / fx
+    cy = intrinsic_matrix[1, 2]
+    fy = intrinsic_matrix[1, 1]
+    # Flip y as we want +y pointing up not down
+    y = -((compressed_v_idxs - cy) * z / fy)
+
+    # # Apply camera_matrix to pointcloud as to get the pointcloud in world coords
+    if extrinsic_matrix is not None:
+        # Calculate camera pose from extrinsic matrix
+        camera_matrix = np.linalg.inv(extrinsic_matrix)
+        # Create homogenous array of vectors by adding 4th entry of 1
+        # At the same time flip z as for eye space the camera is looking down the -z axis
+        w = np.ones(z.shape)
+        x_y_z_eye_hom = np.vstack((x, y, -z, w))
+        # Transform the points from eye space to world space
+        x_y_z_world = np.dot(camera_matrix, x_y_z_eye_hom)[:3]
+        return x_y_z_world.T
+    else:
+        x_y_z_local = np.stack((x, y, z), axis=-1)
+    return np.concatenate([x_y_z_local, image], axis=-1)
