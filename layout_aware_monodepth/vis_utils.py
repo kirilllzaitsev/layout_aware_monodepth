@@ -59,9 +59,11 @@ def plot_samples_and_preds(
         in_depth = batch["depth"][i]
         if in_depth.shape[0] == 1:
             in_depth = in_depth.permute(1, 2, 0)
+        d = preds[i]
+        if (in_depth.max() <= 1 and d.max() > 1) or (in_depth.max() > 1 and d.max() <= 1):
+            print(f"Warning: {in_depth.max()=} {d.max()=}")
         if in_depth.max() <= 1:
             in_depth *= max_depth
-        d = preds[i]
         if d.max() <= 1:
             d *= max_depth
         if d.shape[0] < d.shape[-1]:
