@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import cv2
 import numpy as np
 import torch
 import torch.nn as nn
@@ -206,14 +207,188 @@ def filter_lines_by_angle(
 
     filtered_lines = []
     for lines in batched_lines:
-        line_slopes = np.abs(
-            (lines[:, 1, 1] - lines[:, 0, 1]) / (lines[:, 1, 0] - lines[:, 0, 0] + 1e-6)
-        )
-        line_angles = np.arctan(line_slopes)
+        line_angles_rad = get_line_angles(lines)
         new_lines = []
 
         for idx, line in enumerate(lines):
-            if low_thresh < line_angles[idx] < high_thresh:
+            if low_thresh < line_angles_rad[idx] < high_thresh:
                 new_lines.append(line)
         filtered_lines.append(np.array(new_lines))
     return filtered_lines if len(filtered_lines) > 1 else filtered_lines[0]
+
+
+def get_line_angles(lines):
+    line_slopes = torch.abs(
+        (lines[:, 1, 1] - lines[:, 0, 1]) / (lines[:, 1, 0] - lines[:, 0, 0] + 1e-6)
+    )
+    line_angles_rad = torch.arctan(line_slopes)
+    return line_angles_rad
+
+
+def line_distance_loss(avg_distances):
+    return torch.mean(avg_distances)
+
+
+def line_orientation_loss(lines1, lines2):
+    if not isinstance(lines1, torch.Tensor):
+        lines1 = torch.from_numpy(lines1)
+    if not isinstance(lines2, torch.Tensor):
+        lines2 = torch.from_numpy(lines2)
+    angles1 = get_line_angles(lines1)
+    angles2 = get_line_angles(lines2)
+    return torch.mean(torch.abs(angles1 - angles2))
+
+
+def reproject_lines(lines, pose, K, Ki, depth):
+    line_coords = torch.from_numpy(lines).to(pose.device)
+    line_coords[:, :, 1] = torch.clamp(line_coords[:, :, 1], 0, depth.shape[-2] - 1)
+    line_coords[:, :, 0] = torch.clamp(line_coords[:, :, 0], 0, depth.shape[-1] - 1)
+    line_coords = torch.cat([line_coords, torch.ones(len(line_coords), 1, 2).to(line_coords.device)], 1)
+    line_depth = depth[0, line_coords.long()[:, :2, 1], line_coords.long()[:, :2, 0]]
+    cam_points = torch.matmul(Ki[..., :3, :3].float(), line_coords)
+    cam_points = line_depth.view(len(line_depth), 1, -1) * cam_points
+    world_points = torch.matmul(
+        pose[None, :3, :3].transpose(1, 2), cam_points - pose[None, :3, 3].unsqueeze(-1)
+    )
+
+    P = torch.matmul(K, pose)[None, :3, :]
+    reproj_cam_points = torch.matmul(
+        P, torch.cat([world_points, torch.ones(len(line_coords), 1, 2).to(line_coords.device)], 1)
+    )
+
+    reproj_line_coords = reproj_cam_points[:, :2, :] / (
+        reproj_cam_points[:, 2, :].unsqueeze(1) + 1e-8
+    )
+    reproj_line_coords = reproj_line_coords.detach().int()
+    return reproj_line_coords
+
+
+def reproject_lines_batch(lines, pose, K, Ki, depth):
+    res = []
+    if len(K.shape) == 2:
+        K = K[None]
+        Ki = Ki[None]
+    for lines_, pose_, K_, Ki_, depth_ in zip(lines, pose, K, Ki, depth):
+        res.append(reproject_lines(lines_, pose_, K_, Ki_, depth_))
+    return res
+
+
+def find_closest_lines_to_src(src, target):
+    if not isinstance(src, torch.Tensor):
+        src = torch.from_numpy(src)
+    if not isinstance(target, torch.Tensor):
+        target = torch.from_numpy(target).to(src.device)
+    dist_start = torch.linalg.norm(src[:, None, 0, :] - target[None, :, 0, :], dim=2)
+    dist_end = torch.linalg.norm(src[:, None, 1, :] - target[None, :, 1, :], dim=2)
+
+    # Average the distances from start and end points
+    avg_distances = (dist_start + dist_end) / 2
+
+    # Find the index of the closest line for each reprojected line
+    closest_line_avg_distances, closest_line_indices = torch.min(avg_distances, dim=1)
+
+    if len(src) != len(target):
+        # remove lines that mapped to the same target line
+        new_closest_idxs = []
+        new_reproj_idxs = []
+        for idx_reproj, idx_closest in enumerate(closest_line_indices):
+            if idx_closest not in new_closest_idxs:
+                new_closest_idxs.append(idx_closest)
+                new_reproj_idxs.append(idx_reproj)
+        closest_line_indices = torch.tensor(new_closest_idxs)
+        src = src[new_reproj_idxs]
+        closest_line_avg_distances = closest_line_avg_distances[new_reproj_idxs]
+
+    # Select the closest lines
+    closest_lines = target[closest_line_indices].int()
+    return {
+        "paired_lines": {
+            "reproj": src,
+            "true": closest_lines,
+        },
+        "avg_distances": closest_line_avg_distances,
+    }
+
+
+def find_closest_lines_to_src_batch(src, target):
+    res = []
+    for src_, target_ in zip(src, target):
+        res.append(find_closest_lines_to_src(src_, target_))
+    return res
+
+
+def plot_line_pairs(reprojected, true, hw, take_n=None, avg_distances=None, font_scale=1, no_text=True):
+    # canvas = np.zeros(hw)
+    canvas = np.zeros((hw[0], hw[1], 3))
+    if take_n is not None:
+        if avg_distances is not None:
+            worst_idxs = torch.argsort(avg_distances, descending=True)
+            reprojected = reprojected[worst_idxs]
+            true = true[worst_idxs]
+        reprojected = reprojected[:take_n]
+        true = true[:take_n]
+    # colors = (
+    #     (np.linspace(0.2, 1, reprojected.shape[0])),
+    #     (np.linspace(0.2, 1, reprojected.shape[0])),
+    #     (np.linspace(0.2, 1, reprojected.shape[0])),
+    # )
+    colors = (
+        np.random.rand(reprojected.shape[0]),
+        np.random.rand(reprojected.shape[0]),
+        np.random.rand(reprojected.shape[0]),
+    )
+    if not isinstance(reprojected, np.ndarray):
+        reprojected = reprojected.cpu().numpy()
+    if not isinstance(true, np.ndarray):
+        true = true.cpu().numpy()
+    for i in range(reprojected.shape[0]):
+        pair_color = colors[0][i], colors[1][i], colors[2][i]
+        canvas = cv2.line(
+            canvas,
+            tuple(reprojected[i, 0]),
+            tuple(reprojected[i, 1]),
+            pair_color,
+            2,
+        )
+        canvas = cv2.line(
+            canvas,
+            tuple(true[i, 0]),
+            tuple(true[i, 1]),
+            pair_color,
+            2,
+        )
+        if not no_text:
+            # mark line in each pair with a single index
+            canvas = cv2.putText(
+                canvas,
+                str(i),
+                tuple(reprojected[i, 0]),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.4 * font_scale,
+                (1, 1, 1),
+                2,
+                cv2.LINE_AA,
+            )
+            canvas = cv2.putText(
+                canvas,
+                str(i),
+                tuple(true[i, 0]),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.4 * font_scale,
+                (1, 1, 1),
+                2,
+                cv2.LINE_AA,
+            )
+    return canvas
+
+
+
+def plot_lines(lines, hw, color=(1, 1, 1)):
+    if not isinstance(lines, np.ndarray):
+        lines = lines.cpu().numpy()
+    lines = lines.astype('int')
+    # overlay = image.permute(1, 2, 0).numpy().copy()
+    overlay = np.zeros(hw)
+    for line in lines:
+        overlay = cv2.line(overlay, tuple(line[0]), tuple(line[1]), color)
+    return overlay
