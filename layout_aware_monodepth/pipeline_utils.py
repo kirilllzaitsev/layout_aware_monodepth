@@ -11,7 +11,7 @@ import yaml
 from layout_aware_monodepth.cfg import cfg
 
 
-def create_tracking_exp(args, exp_disabled=True) -> comet_ml.Experiment:
+def create_tracking_exp(args, exp_disabled=True, force_disabled=False) -> comet_ml.Experiment:
     exp_init_args = dict(
         api_key="W5npcWDiWeNPoB2OYkQvwQD0C",
         auto_output_logging="simple",
@@ -22,7 +22,7 @@ def create_tracking_exp(args, exp_disabled=True) -> comet_ml.Experiment:
         log_env_gpu=True,
         log_env_cpu=True,
         log_code=False,
-        disabled=getattr(args, "exp_disabled", exp_disabled),
+        disabled=getattr(args, "exp_disabled", exp_disabled) or force_disabled,
     )
     if getattr(args, "resume_exp", False):
         from comet_ml.api import API
@@ -39,6 +39,10 @@ def create_tracking_exp(args, exp_disabled=True) -> comet_ml.Experiment:
 
     for code_file in glob.glob("./*.py"):
         experiment.log_code(code_file)
+
+    print(
+        f'Please leave a note about the experiment at {experiment._get_experiment_url(tab="notes")}'
+    )
 
     return experiment
 

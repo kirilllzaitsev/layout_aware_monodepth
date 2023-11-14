@@ -12,15 +12,16 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from PIL import Image
 
 
-def attach_colorbar(ax, img=None, vmin=0, vmax=1, scaler=1.0):
+def attach_colorbar(ax, vmin=0, vmax=1, scaler=1.0):
     def formatter(x, pos):
         return f"{x * scaler:.0f}"
 
-    img = img or ax.images[0]
+    img = ax.images[0]
 
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
-    cbar = ax.figure.colorbar(img, cax=cax, format=formatter)
+    ticks = np.linspace(img.get_clim()[0], img.get_clim()[1], 3)
+    cbar = ax.figure.colorbar(img, cax=cax, format=formatter, ticks=ticks)
     cbar.mappable.set_clim(vmin=vmin, vmax=vmax)
 
 
@@ -96,8 +97,8 @@ def plot_samples_and_preds(
         axs_row = [ax_0, ax_1, ax_2]
 
         if with_colorbar:
-            for ax in [ax_1, ax_2]:
-                attach_colorbar(ax, ax.images[0], vmax=in_depth.max())
+            attach_colorbar(ax_1, vmax=in_depth.max())
+            attach_colorbar(ax_2, vmax=d.max())
 
         if with_depth_diff:
             axs_row.append(ax_3)

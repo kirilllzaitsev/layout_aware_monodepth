@@ -48,4 +48,4 @@ def rescale_img_to_zero_one_range(x):
 
 
 def log_params_to_exp(experiment, params: dict, prefix: str):
-    experiment.log_parameters({f"{prefix}/{k}": v for k, v in params.items()})
+    experiment.log_parameters({f"{prefix}/{str(k)}": v for k, v in params.items()})

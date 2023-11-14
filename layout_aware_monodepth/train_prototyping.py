@@ -96,7 +96,8 @@ def prepare_args(args, experiment, exp_dir):
                 default_flow_style=False,
             )
     experiment.log_asset(train_args_path)
-    os.remove("./train_args_latest.yaml")
+    if os.path.exists("./train_args_latest.yaml"):
+        os.remove("./train_args_latest.yaml")
     os.symlink(
         train_args_path,
         "./train_args_latest.yaml",

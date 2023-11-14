@@ -208,7 +208,7 @@ def degrees_to_weights(degrees):
         1 / sharpness_factor
     )
 
-    # Create the plot
+    # scaling magic
     heights /= 300
     heights = heights**4
     return heights
