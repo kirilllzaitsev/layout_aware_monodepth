@@ -1,3 +1,4 @@
+import copy
 from pathlib import Path
 
 import cv2
@@ -243,7 +244,9 @@ def reproject_lines(lines, pose, K, Ki, depth):
     line_coords = torch.from_numpy(lines).to(pose.device)
     line_coords[:, :, 1] = torch.clamp(line_coords[:, :, 1], 0, depth.shape[-2] - 1)
     line_coords[:, :, 0] = torch.clamp(line_coords[:, :, 0], 0, depth.shape[-1] - 1)
-    line_coords = torch.cat([line_coords, torch.ones(len(line_coords), 1, 2).to(line_coords.device)], 1)
+    line_coords = torch.cat(
+        [line_coords, torch.ones(len(line_coords), 1, 2).to(line_coords.device)], 1
+    )
     line_depth = depth[0, line_coords.long()[:, :2, 1], line_coords.long()[:, :2, 0]]
     cam_points = torch.matmul(Ki[..., :3, :3].float(), line_coords)
     cam_points = line_depth.view(len(line_depth), 1, -1) * cam_points
@@ -253,7 +256,10 @@ def reproject_lines(lines, pose, K, Ki, depth):
 
     P = torch.matmul(K, pose)[None, :3, :]
     reproj_cam_points = torch.matmul(
-        P, torch.cat([world_points, torch.ones(len(line_coords), 1, 2).to(line_coords.device)], 1)
+        P,
+        torch.cat(
+            [world_points, torch.ones(len(line_coords), 1, 2).to(line_coords.device)], 1
+        ),
     )
 
     reproj_line_coords = reproj_cam_points[:, :2, :] / (
@@ -317,7 +323,9 @@ def find_closest_lines_to_src_batch(src, target):
     return res
 
 
-def plot_line_pairs(reprojected, true, hw, take_n=None, avg_distances=None, font_scale=1, no_text=True):
+def plot_line_pairs(
+    reprojected, true, hw, take_n=None, avg_distances=None, font_scale=1, no_text=True
+):
     # canvas = np.zeros(hw)
     canvas = np.zeros((hw[0], hw[1], 3))
     if take_n is not None:
@@ -382,13 +390,168 @@ def plot_line_pairs(reprojected, true, hw, take_n=None, avg_distances=None, font
     return canvas
 
 
-
 def plot_lines(lines, hw, color=(1, 1, 1)):
     if not isinstance(lines, np.ndarray):
         lines = lines.cpu().numpy()
-    lines = lines.astype('int')
+    lines = lines.astype("int")
     # overlay = image.permute(1, 2, 0).numpy().copy()
     overlay = np.zeros(hw)
     for line in lines:
         overlay = cv2.line(overlay, tuple(line[0]), tuple(line[1]), color)
     return overlay
+
+
+import skimage
+
+
+def line_eq_parametric(t, line_p1, line_vec_norm):
+    return line_p1 + t.reshape(-1, 1) * line_vec_norm
+
+
+def np_close(np_val, a=1e-3):
+    return np.isclose(np_val, a, atol=1e-4)
+
+
+def infill_depth_along_line_3d(full_gt, lines, K):
+    if not isinstance(K, torch.Tensor):
+        K = torch.from_numpy(K).float()
+    try:
+        inv_K = torch.inverse(K).unsqueeze(0)
+    except np.linalg.LinAlgError as e:
+        print(f"K is not invertible: {K}", str(e))
+        return full_gt
+    do_unsqueeze = False
+    if len(full_gt.shape) == 3:
+        full_gt = full_gt.squeeze()
+        do_unsqueeze = True
+
+    lines[:, :, 1] = np.clip(lines[:, :, 1], 0, full_gt.shape[-2] - 1)
+    lines[:, :, 0] = np.clip(lines[:, :, 0], 0, full_gt.shape[-1] - 1)
+
+    new_gt = full_gt.copy()
+    counter = 0
+    backproj_lines = []
+    added_pts = []
+    for i, line in enumerate(lines):
+        # coords of pts on a line
+        y, x = skimage.draw.line(*(line.astype("int").flatten()))
+        # depth of pts on a line
+        line_depths = torch.from_numpy(full_gt)[x, y]
+        # if not enough depth points, only two are enough to form a line, skip
+        if len(line_depths[line_depths > 1e-3]) < 2:
+            # print("no depth")
+            continue
+        # enough points, consider line for backprojection
+        counter += 1
+
+        # mask for zero-depth points
+        zero_depth_mask = line_depths <= 1e-3
+        # y = y[zero_depth_mask]
+        # x = x[zero_depth_mask]
+
+        # 3d projection start
+        pix_coords = torch.unsqueeze(
+            torch.stack([torch.from_numpy(x), torch.from_numpy(y)], 0), 0
+        )
+        pix_coords = pix_coords.repeat(1, 1, 1)
+        pix_coords = (
+            torch.cat([pix_coords, torch.ones_like(pix_coords[:, :1])], 1)
+        ).float()
+        cam_points = torch.matmul(inv_K[:, :3, :3], pix_coords)
+        # multiply by depth. many of the points will be zero-depth
+        cam_points = line_depths.view(1, -1) * cam_points
+        cam_points = torch.cat([cam_points, torch.ones_like(cam_points[:, :1])], 1)
+        # 3d projection end
+
+        cam_points = cam_points[:, :, cam_points[0, 2] > 1e-3]
+        # cam_points are sorted by depth in ascending order
+        # take that start and end points of the line
+        line_p1 = cam_points[..., 0]
+        line_p2 = cam_points[..., -1]
+        # form a vector from start to end
+        line_vec = line_p2 - line_p1
+        # normalize the vector to get the direction
+        line_length = torch.linalg.norm(line_vec)
+        line_vec_norm = line_vec / line_length
+
+        # sampling of pts should be bounded by the length of the line to avoid points in unknown space beyond the line segment
+        scaler = line_length
+        t_vals = torch.linspace(0, 1 * scaler, len(y))
+        # uniformly sample points on a 3d line. their z values already have depth and are meaningful
+        backproj_line_pts = line_eq_parametric(t_vals, line_p1, line_vec_norm)
+        backproj_line_pts = backproj_line_pts.T.unsqueeze(0)
+
+        # vis_line_with_pts_on_it_3d(
+        #     torch.vstack([line_p1, line_p2])[:,:-1].unsqueeze(0).numpy().reshape(-1, 3),
+        #     backproj_line_pts.squeeze().numpy()[:3].T
+        # )
+
+        # get the 2d projection of the 3d points
+        # P = torch.matmul(K, pose)[..., :3, :]
+        # since we don't use pose, P is just K
+        P = K.unsqueeze(0)
+
+        # cam_points = torch.matmul(P, cam_points)
+        # projection of 3d points to 2d
+        cam_points_reproj = torch.matmul(P, backproj_line_pts)
+        # cam_points_reproj = backproj_line_pts
+
+        # normalize by z
+        pix_coords_line = cam_points_reproj[:, :2, :] / (
+            cam_points_reproj[:, 2, :].unsqueeze(1) + 1e-7
+        )
+        # come back to line coords
+        pix_coords_line = pix_coords_line.view(2, cam_points_reproj.shape[-1])
+        # why is the scaling here? does it hold for the lines instead of image?
+        # pix_coords_line[..., 0] /= args.width - 1
+        # pix_coords_line[..., 1] /= args.height - 1
+        # pix_coords_line = (pix_coords_line - 0.5) * 2
+
+        # clip projected coords to image size
+        pix_coords_line[0, pix_coords_line[0] >= full_gt.shape[0]] = (
+            full_gt.shape[0] - 1
+        )
+        pix_coords_line[1, pix_coords_line[1] >= full_gt.shape[1]] = (
+            full_gt.shape[1] - 1
+        )
+        # filter out points that are outside of the image (although can clamp as well, but have to be careful with huge values when clamping)
+        valid_coords = torch.logical_and(
+            pix_coords_line[0] >= 0, pix_coords_line[1] >= 0
+        )
+        pix_coords_line = pix_coords_line[:, valid_coords].long().numpy()
+
+        # if pixels are non-zero on gt depth, skip adding them
+        pix_coords_line_with_missing_gt = []
+        idxs_of_coords_with_missing_gt = []
+        for i, coords in enumerate(pix_coords_line.T):
+            coord_x, coord_y = coords
+            if not np.isclose(full_gt[coord_x, coord_y], 1e-3):
+                continue
+            pix_coords_line_with_missing_gt.append(coords)
+            idxs_of_coords_with_missing_gt.append(i)
+
+        # should not happen
+        if len(pix_coords_line_with_missing_gt) == 0:
+            print("no missing gt at all reprojected coords. skipping line")
+            added_pts.append(0)
+            continue
+        pix_coords_line_with_missing_gt = np.array(pix_coords_line_with_missing_gt).T
+
+        # depth is the third coordinate of pts in 3d space
+        backproj_line_pts_depth = backproj_line_pts[:, 2]
+        # add the depth to the gt at coords where gt was zero
+        new_gt[
+            pix_coords_line_with_missing_gt[0], pix_coords_line_with_missing_gt[1]
+        ] = backproj_line_pts_depth.squeeze()[valid_coords][
+            idxs_of_coords_with_missing_gt
+        ]
+
+        backproj_lines.append(pix_coords_line_with_missing_gt)
+        added_pts.append(len(pix_coords_line_with_missing_gt[0]))
+    # print(f"{counter=}, {len(lines)=}, len(lines)/#backproj={len(lines)/counter}")
+    # print(f"{np.mean(added_pts)=}")
+    # print(np.sum(full_gt > 1e-3), np.sum(new_gt > 1e-3))
+    # print(f"#nonzero_old/#nonzero_new{np.sum(full_gt > 1e-3)/np.sum(new_gt > 1e-3)=}")
+    if do_unsqueeze:
+        new_gt = new_gt[None]
+    return {"infilled_gt": new_gt, "backproj_lines": backproj_lines}
