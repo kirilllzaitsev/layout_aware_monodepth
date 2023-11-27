@@ -1,3 +1,5 @@
+from collections import defaultdict
+import copy
 import json
 import os
 import random
@@ -23,7 +25,7 @@ from layout_aware_monodepth.data.transforms import (
     test_transform,
     train_preprocess,
 )
-from layout_aware_monodepth.line_utils import rescale_lines
+from layout_aware_monodepth.line_utils import infill_depth_along_line_3d, rescale_lines
 
 
 class MonodepthDataset(Dataset):
@@ -51,10 +53,16 @@ class MonodepthDataset(Dataset):
         self.include_sample_paths = include_sample_paths
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        if self.args.line_op is not None or getattr(self.args, "include_lines", False):
+        if (
+            self.args.line_op is not None
+            or getattr(self.args, "include_lines", False)
+            or self.args.use_lines_to_infill_gt
+        ):
             from layout_aware_monodepth.line_utils import load_deeplsd
 
             self.deeplsd = load_deeplsd().to(self.device)
+
+        self.intrinsics = torch.load(f"{self.args.data_path}/intrinsics.pth")
 
     def __getitem__(self, idx):
         image, depth_gt = self.load_img_and_depth(self.filenames[idx])
@@ -74,6 +82,11 @@ class MonodepthDataset(Dataset):
         if self.include_sample_paths:
             sample["rgb_path"] = self.load_paths(self.filenames[idx])[0]
 
+        if self.args.use_lines_to_infill_gt:
+            # sample["K"] = torch.from_numpy(line_detector_res["K"][0])
+            sample = self.add_infilled_depth(self.filenames[idx], sample)
+            
+        return sample
 
     def add_infilled_depth(self, paths_map, sample):
         folder = paths_map["rgb"].split("/")[0]
@@ -99,6 +112,7 @@ class MonodepthDataset(Dataset):
         images = []
         line_embeds = []
         depths = []
+        res = defaultdict(list)
         for paths_map in sample_paths:
             image, depth_gt = self.load_img_and_depth(paths_map)
             line_detector_res = (
@@ -116,13 +130,16 @@ class MonodepthDataset(Dataset):
             if self.args.line_op == "concat_embed":
                 line_embeds.append(sample["line_embed"])
             depths.append(torch.from_numpy(sample["depth"]))
+            if self.args.use_lines_to_infill_gt:
+                sample = self.add_infilled_depth(paths_map, sample)
+                res['infilled_depth'].append(torch.from_numpy(sample['infilled_depth']))
 
-        res = {
-            "image": torch.stack(images),
-            "depth": torch.stack(depths),
-        }
+        res['image'] = torch.stack(images)
+        res['depth'] = torch.stack(depths)
         if self.args.line_op == "concat_embed":
             res["line_embed"] = torch.stack(line_embeds)
+        if self.args.use_lines_to_infill_gt:
+            res['infilled_depth'] = torch.stack(res['infilled_depth'])
         return res
 
     def prep_train_sample(
@@ -136,7 +153,16 @@ class MonodepthDataset(Dataset):
         image = np.asarray(image, dtype=np.float32) / 255.0
         depth_gt = np.asarray(depth_gt, dtype=np.float32)
 
-        include_lines = getattr(self.args, "include_lines", False)
+        if self.args.do_crop:
+            image, depth_gt = self.crop(image, depth_gt)
+
+        orig_shape = image.shape
+        image, depth_gt = resize_inputs(image, depth_gt, target_shape=self.target_shape)
+        include_lines = (
+            getattr(self.args, "include_lines", False)
+            or self.args.use_lines_to_infill_gt
+        )
+
         if include_lines:
             if line_detector_res is None:
                 line_detector_res = self.run_line_detector(image)
@@ -152,12 +178,6 @@ class MonodepthDataset(Dataset):
             line_embed = line_info["feature_map"]
             if self.args.do_crop:
                 line_embed = kb_crop(line_embed.numpy())
-
-        if self.args.do_crop:
-            image, depth_gt = self.crop(image, depth_gt)
-
-        orig_shape = image.shape
-        image, depth_gt = resize_inputs(image, depth_gt, target_shape=self.target_shape)
 
         depth_gt = np.expand_dims(depth_gt, axis=2)
 
@@ -189,8 +209,9 @@ class MonodepthDataset(Dataset):
                 .permute(2, 0, 1)
             )
         if include_lines:
-            rescaled_lines = rescale_lines(lines, orig_shape)
-            sample["lines"] = rescaled_lines
+            if self.args.rescale_after_deeplsd:
+                lines = rescale_lines(lines, orig_shape, self.target_shape)
+            sample["lines"] = lines
         return sample
 
     def load_intrinsics(self, image_path):
