@@ -31,6 +31,7 @@ def plot_samples_and_preds(
     with_colorbar=False,
     with_depth_diff=False,
     with_img_depth_overlay=False,
+    with_infilled_depth=False,
     max_depth=1.0,
     image=None,
     depth=None,
@@ -42,7 +43,13 @@ def plot_samples_and_preds(
 
     batch_size = len(batch["image"])
     with_lines_concat = batch["image"].shape[1] == 4
-    ncols = 3 + with_depth_diff + with_lines_concat + with_img_depth_overlay
+    ncols = (
+        3
+        + with_depth_diff
+        + with_lines_concat
+        + with_img_depth_overlay
+        + with_infilled_depth * 2
+    )
     fig, axs = plt.subplots(
         batch_size,
         ncols,
@@ -58,10 +65,16 @@ def plot_samples_and_preds(
         else:
             img = batch["image"][i].permute(1, 2, 0)
         in_depth = batch["depth"][i]
+        if with_infilled_depth:
+            infilled_depth = batch["infilled_depth"][i]
         if in_depth.shape[0] == 1:
             in_depth = in_depth.permute(1, 2, 0)
+            if with_infilled_depth:
+                infilled_depth = infilled_depth.permute(1, 2, 0)
         d = preds[i]
-        if (in_depth.max() <= 1 and d.max() > 1) or (in_depth.max() > 1 and d.max() <= 1):
+        if (in_depth.max() <= 1 and d.max() > 1) or (
+            in_depth.max() > 1 and d.max() <= 1
+        ):
             print(f"Warning: {in_depth.max()=} {d.max()=}")
         if in_depth.max() <= 1:
             in_depth *= max_depth
@@ -80,6 +93,13 @@ def plot_samples_and_preds(
                 ax_4 = axs[3 + with_depth_diff]
             if with_img_depth_overlay:
                 ax_5 = axs[3 + with_depth_diff + with_lines_concat]
+            if with_infilled_depth:
+                ax_6 = axs[
+                    3 + with_depth_diff + with_lines_concat + with_img_depth_overlay
+                ]
+                ax_7 = axs[
+                    3 + with_depth_diff + with_lines_concat + with_img_depth_overlay + 1
+                ]
         else:
             ax_0 = axs[i, 0]
             ax_1 = axs[i, 1]
@@ -90,6 +110,18 @@ def plot_samples_and_preds(
                 ax_4 = axs[i, 3 + with_depth_diff]
             if with_img_depth_overlay:
                 ax_5 = axs[i, 3 + with_depth_diff + with_lines_concat]
+            if with_infilled_depth:
+                ax_6 = axs[
+                    i, 3 + with_depth_diff + with_lines_concat + with_img_depth_overlay
+                ]
+                ax_7 = axs[
+                    i,
+                    3
+                    + with_depth_diff
+                    + with_lines_concat
+                    + with_img_depth_overlay
+                    + 1,
+                ]
 
         ax_0.imshow(img)
         ax_1.imshow(in_depth)
@@ -107,7 +139,7 @@ def plot_samples_and_preds(
             valid_diff = np.where(mask, diff, 0)
             valid_diff = cv2.dilate(valid_diff, np.ones((2, 2)))
             ax_3.imshow(valid_diff, cmap="magma")
-            attach_colorbar(ax_3, ax_3.images[0], vmax=None)
+            attach_colorbar(ax_3, vmax=None)
 
         if with_lines_concat:
             axs_row.append(ax_4)
@@ -116,6 +148,13 @@ def plot_samples_and_preds(
         if with_img_depth_overlay:
             axs_row.append(ax_5)
             overlay_img_and_depth(ax_5, img, d)
+
+        if with_infilled_depth:
+            axs_row.append(ax_6)
+            ax_6.imshow(infilled_depth)
+            axs_row.append(ax_7)
+            ax_7.imshow(np.abs(in_depth - infilled_depth))
+            attach_colorbar(ax_7, vmax=None)
 
         for ax in axs_row:
             ax.axis("off")
@@ -135,6 +174,10 @@ def plot_samples_and_preds(
                     "Overlaid depth",
                     fontsize=fontsize,
                 )
+            if with_infilled_depth:
+                ax_1.set_title("GT Depth", fontsize=fontsize)
+                ax_6.set_title("Infilled depth", fontsize=fontsize)
+                ax_7.set_title("GT Depth diff", fontsize=fontsize)
     fig.subplots_adjust(wspace=0.05, hspace=0.05)
     plt.tight_layout()
     return fig
