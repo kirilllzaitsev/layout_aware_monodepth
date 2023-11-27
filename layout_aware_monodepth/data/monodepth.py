@@ -74,6 +74,22 @@ class MonodepthDataset(Dataset):
         if self.include_sample_paths:
             sample["rgb_path"] = self.load_paths(self.filenames[idx])[0]
 
+
+    def add_infilled_depth(self, paths_map, sample):
+        folder = paths_map["rgb"].split("/")[0]
+        intrinsics = self.load_intrinsics(folder)
+        intrinsics[0] *= self.target_shape[0] / 1242
+        intrinsics[1] *= self.target_shape[1] / 375
+        intrinsics = torch.from_numpy(intrinsics.astype(np.float32))
+        sample["K"] = np.eye(4)
+        sample["K"][:3, :3] = intrinsics
+        infill_res = infill_depth_along_line_3d(
+                sample["depth"],
+                sample["lines"],
+                K=sample["K"],
+            )
+        sample["infilled_depth"] = infill_res["infilled_gt"]
+        sample.pop('lines')
         return sample
 
     def load_line_detector_res(self, paths_map):
