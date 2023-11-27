@@ -19,9 +19,7 @@ def postproc_eval_depths(pred, target, min_depth=1e-3, max_depth=10):
     return pred, gt_depth
 
 
-def compute_eval_mask(
-    gt_depth, min_depth, max_depth, ds_name, crop_type=None
-):
+def compute_eval_mask(gt_depth, min_depth, max_depth, ds_name, crop_type=None):
     valid_mask = np.logical_and(gt_depth > min_depth, gt_depth < max_depth)
     if crop_type is not None:
         gt_height, gt_width = gt_depth.shape

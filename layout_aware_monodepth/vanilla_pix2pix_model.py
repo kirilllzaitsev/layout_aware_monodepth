@@ -72,7 +72,7 @@ class DepthModel(nn.Module):
         d7 = pad_to_match(e1, d7)
         d7 = torch.cat([d7, e1], 1)
         d8 = self.upconv8(F.relu(d7))
-        
+
         d9 = self.final_conv(F.relu(d8))
         o = F.sigmoid(d9)
 

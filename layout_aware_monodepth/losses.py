@@ -179,7 +179,9 @@ class LineLoss(nn.Module):
             for i, line in enumerate(sample_lines):
                 pt1 = line[0]
                 pt2 = line[1]
-                depth_diff_at_line_ends = torch.abs(sample_pred[pt1[1], pt1[0]] - sample_pred[pt2[1], pt2[0]])
+                depth_diff_at_line_ends = torch.abs(
+                    sample_pred[pt1[1], pt1[0]] - sample_pred[pt2[1], pt2[0]]
+                )
                 if depth_diff_at_line_ends < 0.5:
                     # line is not useful
                     continue

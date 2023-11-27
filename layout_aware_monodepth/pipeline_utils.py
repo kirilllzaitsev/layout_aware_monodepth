@@ -11,7 +11,9 @@ import yaml
 from layout_aware_monodepth.cfg import cfg
 
 
-def create_tracking_exp(args, exp_disabled=True, force_disabled=False) -> comet_ml.Experiment:
+def create_tracking_exp(
+    args, exp_disabled=True, force_disabled=False, project_name="layout-aware-monodepth"
+) -> comet_ml.Experiment:
     exp_init_args = dict(
         api_key="W5npcWDiWeNPoB2OYkQvwQD0C",
         auto_output_logging="simple",
@@ -28,14 +30,12 @@ def create_tracking_exp(args, exp_disabled=True, force_disabled=False) -> comet_
         from comet_ml.api import API
 
         api = API(api_key="W5npcWDiWeNPoB2OYkQvwQD0C")
-        exp_api = api.get(f"kirilllzaitsev/layout-aware-monodepth/{args.exp_name}")
+        exp_api = api.get(f"kirilllzaitsev/{project_name}/{args.exp_name}")
         experiment = comet_ml.ExistingExperiment(
             **exp_init_args, experiment_key=exp_api.id
         )
     else:
-        experiment = comet_ml.Experiment(
-            **exp_init_args, project_name="layout-aware-monodepth"
-        )
+        experiment = comet_ml.Experiment(**exp_init_args, project_name=project_name)
 
     for code_file in glob.glob("./*.py"):
         experiment.log_code(code_file)
