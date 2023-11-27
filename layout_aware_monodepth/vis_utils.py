@@ -394,12 +394,15 @@ def get_pointcloud_from_rgbd(
         # Create homogenous array of vectors by adding 4th entry of 1
         # At the same time flip z as for eye space the camera is looking down the -z axis
         w = np.ones(z.shape)
-        x_y_z_eye_hom = np.vstack((x, y, -z, w))
+        x_y_z_eye_hom = np.vstack((x, y, -z, w)).reshape(4, -1)
         # Transform the points from eye space to world space
         x_y_z_world = np.dot(camera_matrix, x_y_z_eye_hom)[:3]
         return x_y_z_world.T
     else:
         x_y_z_local = np.stack((x, y, z), axis=-1)
+    return x_y_z_local.reshape(-1, 3)
+    # return np.concatenate([x_y_z_local, image], axis=-1)
+
 
 import open3d as o3d
 
