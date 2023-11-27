@@ -357,4 +357,31 @@ def get_pointcloud_from_rgbd(
         return x_y_z_world.T
     else:
         x_y_z_local = np.stack((x, y, z), axis=-1)
-    return np.concatenate([x_y_z_local, image], axis=-1)
+
+import open3d as o3d
+
+
+def vis_lines_3d(line_3d_pts, pcd=None):
+    # expects line_3d_pts to be of shape (N, 2, 3)
+    if pcd is not None:
+        o3d_cloud = o3d.geometry.PointCloud()
+        o3d_cloud.points = o3d.utility.Vector3dVector(pcd[:3].T)
+    line_set = o3d.geometry.LineSet()
+    lines = [[i, i + 1] for i in range(0, line_3d_pts.shape[0] - 1, 2)]
+    line_set.points = o3d.utility.Vector3dVector(line_3d_pts)
+    line_set.lines = o3d.utility.Vector2iVector(lines)
+    draw_geom = [line_set]
+    if pcd is not None:
+        draw_geom.append(o3d_cloud)
+    o3d.visualization.draw_geometries(draw_geom)
+
+
+def vis_line_with_pts_on_it_3d(line_3d_pts, pts_3d):
+    # expects line_3d_pts to be of shape (N, 2, 3)
+    line_set = o3d.geometry.LineSet()
+    line_set.points = o3d.utility.Vector3dVector(line_3d_pts)
+    line_set.lines = o3d.utility.Vector2iVector([[0, 1]])
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(pts_3d)
+    draw_geom = [line_set, pcd]
+    o3d.visualization.draw_geometries(draw_geom)
