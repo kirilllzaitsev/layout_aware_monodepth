@@ -177,6 +177,12 @@ class MonodepthDataset(Dataset):
             sample["lines"] = rescaled_lines
         return sample
 
+    def load_intrinsics(self, image_path):
+        date_pattern = r"\d{4}_\d{2}_\d{2}"
+        date = re.search(date_pattern, image_path).group(0)
+        intrinsics = copy.deepcopy(self.intrinsics[date])
+        return intrinsics
+
     def prep_test_sample(self, image):
         image = np.asarray(image, dtype=np.float32)
         image /= 255.0
