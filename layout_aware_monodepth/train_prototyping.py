@@ -58,6 +58,7 @@ def log_benchmark_batch_res(
         with_depth_diff=True,
         with_colorbar=True,
         max_depth=train_ds.max_depth,
+        with_infilled_depth='infilled_depth' in benchmark_batch,
     )
     experiment.log_figure(
         name,
@@ -294,7 +295,7 @@ def run(args):
         ]
         benchmark_batch = train_ds.load_benchmark_batch(benchmark_paths)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
     if args.use_dnet:
         model = init_dnet(
             params_path="./models/dnet/arguments_train_kitti_eigen_debug.txt"
@@ -572,6 +573,7 @@ def main():
     model_args_group.add_argument(
         "--use_df_as_self_attn_pos_embed", action="store_true"
     )
+    model_args_group.add_argument("--use_lines_to_infill_gt", action="store_true")
     model_args_group.add_argument("--use_df_as_feature_map", action="store_true")
     model_args_group.add_argument("--use_df_to_postproc_depth", action="store_true")
     model_args_group.add_argument("--use_line_info_as_feature_map", action="store_true")
@@ -598,6 +600,10 @@ def main():
     optim_args_group = parser.add_argument_group("optim_args")
     optim_args_group.add_argument("--num_epochs", type=int, default=20)
     optim_args_group.add_argument("--lr", type=float, default=5e-4)
+
+    parser.add_argument(
+            "--no_cuda", help="if set disables CUDA", action="store_true"
+        )
 
     args = parser.parse_args()
     if args.use_attn_before_se:

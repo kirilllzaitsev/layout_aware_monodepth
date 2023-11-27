@@ -3,6 +3,7 @@ import torch
 
 from layout_aware_monodepth.line_utils import (
     get_deeplsd_pred,
+    infill_depth_along_line_3d,
     load_custom_deeplsd,
     load_deeplsd,
 )
@@ -84,7 +85,11 @@ class Trainer:
             res["loss_structure"] = loss_info["loss_structure"].item()
             res["loss_smoothness"] = loss_info["loss_smoothness"].item()
         else:
-            y = batch["depth"].to(self.device)
+            if self.args.use_lines_to_infill_gt:
+                # the model is trained using the infilled depth and evaluated using the original depth
+                y = batch["infilled_depth"].to(self.device)
+            else:
+                y = batch["depth"].to(self.device)
             loss = criterion(out, y)
 
         res["loss"] = loss.item()
