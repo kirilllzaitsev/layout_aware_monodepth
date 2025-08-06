@@ -2,11 +2,9 @@ ds_name: kitti
 batch_size: 8
 
 split: eigen
-# split: null
 
-data_path: /mnt/wext/msc_studies/monodepth_project/data/kitti/kitti-depth
-filenames_file: ../data/data_splits/kitti_dc_partitioned.json
-# filenames_file: ../data/data_splits/kitti_dc.json
+data_path: null
+filenames_file: ../data/data_splits/kitti_dc_partitioned.json  # ensure generalization on new videos
 
 input_height: 352
 input_width: 1216
@@ -21,9 +19,10 @@ line_filter: null
 use_grayscale_img: false
 do_load_lines: false
 
-target_shape: [768, 256]
-# target_shape: [896, 256]
-# target_shape: [640, 192]
+target_shape: [640, 192]
 
 min_length: 25
 use_min_length: false
+
+use_lines_to_infill_gt: false
+rescale_after_deeplsd: false

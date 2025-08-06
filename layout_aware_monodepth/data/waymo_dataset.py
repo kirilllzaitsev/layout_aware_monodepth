@@ -51,6 +51,8 @@ class WaymoDataset(Dataset):
 
 
 if __name__ == "__main__":
+    # to download Waymo, use gsutil:
+    # gsutil -m rsync -r -y ".*_segmentation/$" -n gs://waymo_open_dataset_v_2_0_0/validation/ .
     # Create a dataset instance
     dataset = WaymoDataset(save_dir="/waymo/v1/validation/extracted")
 
