@@ -404,10 +404,10 @@ def get_pointcloud_from_rgbd(
     # return np.concatenate([x_y_z_local, image], axis=-1)
 
 
-import open3d as o3d
 
 
 def vis_lines_3d(line_3d_pts, pcd=None):
+    import open3d as o3d
     # expects line_3d_pts to be of shape (N, 2, 3)
     if pcd is not None:
         o3d_cloud = o3d.geometry.PointCloud()
@@ -423,6 +423,7 @@ def vis_lines_3d(line_3d_pts, pcd=None):
 
 
 def vis_line_with_pts_on_it_3d(line_3d_pts, pts_3d):
+    import open3d as o3d
     # expects line_3d_pts to be of shape (N, 2, 3)
     line_set = o3d.geometry.LineSet()
     line_set.points = o3d.utility.Vector3dVector(line_3d_pts)

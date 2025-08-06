@@ -49,3 +49,7 @@ def rescale_img_to_zero_one_range(x):
 
 def log_params_to_exp(experiment, params: dict, prefix: str):
     experiment.log_parameters({f"{prefix}/{str(k)}": v for k, v in params.items()})
+
+
+def log_ckpt_to_exp(experiment, ckpt_path: str, model_name):
+    experiment.log_model(model_name, ckpt_path, overwrite=False)
