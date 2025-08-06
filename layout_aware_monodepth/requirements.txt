@@ -1,5 +1,0 @@
-einops
-torch
-torchvision
-timm
-pretrainedmodels_pytorch

@@ -1,0 +1,9 @@
+timm
+segmentation_models_pytorch
+lightning
+pytorch-lightning
+pretrainedmodels
+efficientnet_pytorch
+opencv-python
+opencv-contrib-python
+einops
